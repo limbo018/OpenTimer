@@ -88,6 +88,7 @@ enum Tran {
 
 constexpr int MAX_SPLIT = 2;
 constexpr int MAX_TRAN = 2;
+constexpr int MAX_SPLIT_TRAN = MAX_SPLIT * MAX_TRAN;
 
 // Function: to_string
 inline auto to_string(Split m) {

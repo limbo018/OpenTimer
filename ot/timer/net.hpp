@@ -11,6 +11,8 @@ namespace ot {
 class RctEdge;
 class RctNode;
 class Rct;
+struct FlatRctStorage;
+class FlatRct;
 
 // ------------------------------------------------------------------------------------------------
 
@@ -139,6 +141,45 @@ inline size_t Rct::num_edges() const {
 }
 
 // ------------------------------------------------------------------------------------------------
+// FlatRct support is built for CUDA Acceleration.
+
+// Class: FlatRctStorage
+// This class is a storage stored in Timer instance
+struct FlatRctStorage {
+  size_t total_num_nodes;
+  std::vector<int> arr_starts;
+  std::vector<int> pid;
+  std::vector<float> pres, cap;
+
+  std::vector<float> load, delay, ldelay, impulse;
+
+  void _update_timing_cpu();
+  void _update_timing_cuda();
+};
+
+// Class: FlatRct
+// This is essentially a pointer to a region of one FlatRctStorage
+class FlatRct {
+  friend class Net;
+  friend class Timer;
+  
+  FlatRctStorage *_stor;
+  std::unordered_map<std::string, int> name2id;
+  std::vector<int> bfs_order_map, bfs_reverse_order_map;
+  size_t _num_nodes;
+  int arr_start;
+
+public:
+  FlatRct() = default;
+  float slew(int, Split, Tran, float) const;
+  float delay(int, Split, Tran) const;
+
+private:
+  void _scale_capacitance(float);
+  void _scale_resistance(float);
+};
+
+// ------------------------------------------------------------------------------------------------
 
 // Class: Net
 class Net {
@@ -169,7 +210,7 @@ class Net {
 
     std::list<Pin*> _pins;
 
-    std::variant<EmptyRct, Rct> _rct;
+    std::variant<EmptyRct, Rct, FlatRct> _rct;
 
     std::optional<spef::Net> _spef_net;
 
@@ -181,9 +222,13 @@ class Net {
     std::optional<float> _delay(Split, Tran, Pin&) const;
     
     void _update_rc_timing();
+    void _update_rc_timing_flat();
     void _attach(spef::Net&&);
     void _make_rct();
     //void _make_rct(const spef::Net&);
+    size_t _init_flat_rct(FlatRctStorage*, int);
+    void _test_flat_rct();
+    void _make_flat_rct();
     void _insert_pin(Pin&);
     void _remove_pin(Pin&);
     void _scale_capacitance(float);

@@ -1,0 +1,8 @@
+cd benchmark/c17/
+read_celllib -early c17_Early.lib
+read_celllib -late c17_Late.lib
+read_verilog c17.v
+read_spef c17.spef
+read_timing c17.timing
+report_timing
+

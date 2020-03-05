@@ -30,6 +30,7 @@ class Timer {
   constexpr static int EPTS_UPDATED  = 0x02;
   constexpr static int AREA_UPDATED  = 0x04;
   constexpr static int POWER_UPDATED = 0x08;
+  constexpr static int CUDA_ENABLED  = 0x10;
 
   public:
     
@@ -56,6 +57,7 @@ class Timer {
     Timer& create_clock(std::string, float);
     Timer& create_clock(std::string, std::string, float);
     Timer& cppr(bool);
+    Timer& cuda(bool);
     Timer& set_time_unit(second_t);
     Timer& set_capacitance_unit(farad_t);
     Timer& set_resistance_unit(ohm_t);
@@ -151,6 +153,8 @@ class Timer {
     std::unordered_map<std::string, Net> _nets;
     std::unordered_map<std::string, Gate> _gates;
     std::unordered_map<std::string, Clock> _clocks;
+
+    std::optional<FlatRctStorage> _flat_rct_stor;
  
     std::list<Test> _tests;
     std::list<Arc> _arcs;
@@ -207,8 +211,11 @@ class Timer {
     void _build_prop_cands();
     void _build_fprop_cands(Pin&);
     void _build_bprop_cands(Pin&);
+    void _build_test_rc_timing_tasks();
+    void _build_rc_timing_tasks();
     void _build_prop_tasks();
     void _clear_prop_tasks();
+    void _clear_rc_timing_tasks();
     void _read_spef(spef::Spef&);;
     void _verilog(vlog::Module&);
     void _timing(tau15::Timing&);
@@ -240,6 +247,7 @@ class Timer {
     void _set_rat(PrimaryOutput&, Split, Tran, std::optional<float>);
     void _set_load(PrimaryOutput&, Split, Tran, std::optional<float>);
     void _cppr(bool);
+    void _cuda(bool);
     void _topologize(SfxtCache&, size_t) const;
     void _spfa(SfxtCache&) const;
     void _spdp(SfxtCache&) const;

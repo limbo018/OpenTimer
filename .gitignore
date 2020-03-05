@@ -1,3 +1,12 @@
+# Local dirs
+benchmark/ 
+bin/ 
+build/ 
+cuda/ 
+example/ 
+rctree-gpu-origin/ 
+unittest/ 
+
 # Compiled Object files
 *.slo
 *.lo

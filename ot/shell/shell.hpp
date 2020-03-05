@@ -64,6 +64,9 @@ class Shell {
     void _cppr                   ();
     void _enable_cppr            ();
     void _disable_cppr           ();
+    void _cuda                   ();
+    void _enable_cuda            ();
+    void _disable_cuda           ();
 
     // action
     void _update_timing          ();
@@ -142,6 +145,9 @@ class Shell {
       {"cppr",                    &Shell::_cppr},
       {"enable_cppr",             &Shell::_enable_cppr},
       {"disable_cppr",            &Shell::_disable_cppr},
+      {"cuda",                    &Shell::_cuda},
+      {"enable_cuda",             &Shell::_enable_cuda},
+      {"disable_cuda",            &Shell::_disable_cuda},
 
       // Action
       {"update_timing",           &Shell::_update_timing},

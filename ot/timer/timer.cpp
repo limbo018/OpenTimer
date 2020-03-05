@@ -1,4 +1,5 @@
 #include <ot/timer/timer.hpp>
+#include <ot/timer/_prof.hpp>
 
 namespace ot {
 
@@ -457,6 +458,19 @@ void Timer::_remove_pin(Pin& pin) {
   _pins.erase(pin._name);
 }
 
+Timer& Timer::cuda(bool flag) {
+  if(flag) {
+    OT_LOGI("enable cuda gpu acceleration");
+    _insert_state(CUDA_ENABLED);
+  }
+  else {
+    OT_LOGI("disable cuda gpu acceleration");
+    _remove_state(CUDA_ENABLED);
+  }
+
+  return *this;
+}
+
 // Function: cppr
 Timer& Timer::cppr(bool flag) {
   
@@ -871,6 +885,7 @@ void Timer::_build_bprop_cands(Pin& to) {
 
 // Procedure: _build_prop_cands
 void Timer::_build_prop_cands() {
+  _prof::setup_timer("_build_prop_cands");
 
   _scc_analysis = false;
 
@@ -902,14 +917,66 @@ void Timer::_build_prop_cands() {
       scc._unloop();
     }
   }
+  
+  _prof::stop_timer("_build_prop_cands");
+}
+
+void Timer::_build_rc_timing_tasks() {
+  _prof::setup_timer("_build_rc_timing_tasks");
+  // Emplace all rc timing tasks
+
+  if(_has_state(CUDA_ENABLED)) {
+    // Step 1: Allocate the space for FlatRct's
+    _flat_rct_stor.emplace();
+    auto &stor = *_flat_rct_stor;
+    
+    stor.arr_starts.reserve(_nets.size());
+    
+    int total_num_nodes = 0;
+    for(auto &p : _nets) {
+      size_t sz = p.second._init_flat_rct(&stor, total_num_nodes);
+      if(!sz) continue;
+
+      stor.arr_starts.push_back(total_num_nodes);
+      total_num_nodes += sz;
+    }
+    stor.arr_starts.push_back(total_num_nodes);
+    stor.total_num_nodes = total_num_nodes;
+    stor.pid.resize(total_num_nodes);
+    stor.pres.resize(total_num_nodes);
+    stor.cap.resize(total_num_nodes * MAX_SPLIT_TRAN);
+
+    // Step 2: Create task for FlatRct make
+    auto pf_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
+        p.second._update_rc_timing_flat();
+      });
+
+    // Step 3: Create task for computing FlatRctStorage
+    auto task_compute = _taskflow.emplace([this] () {
+        _flat_rct_stor->_update_timing_cuda();
+      });
+
+    pf_pair.second.precede(task_compute);
+    //task_init_omp.precede(task_compute);
+  }
+  else {
+    _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
+        p.second._update_rc_timing();
+      });
+  }
+
+  _prof::stop_timer("_build_rc_timing_tasks");
+}
+
+// Procedure: _clear_prop_tasks
+void Timer::_clear_rc_timing_tasks() {
+  // no need to do anything
 }
 
 // Procedure: _build_prop_tasks
 void Timer::_build_prop_tasks() {
+  _prof::setup_timer("_build_prop_tasks");
   
-  // explore propagation candidates
-  _build_prop_cands();
-
   // Emplace the fprop task
   // (1) propagate the rc timing
   // (2) propagate the slew 
@@ -918,7 +985,6 @@ void Timer::_build_prop_tasks() {
   for(auto pin : _fprop_cands) {
     assert(!pin->_ftask);
     pin->_ftask = _taskflow.emplace([this, pin] () {
-      _fprop_rc_timing(*pin);
       _fprop_slew(*pin);
       _fprop_delay(*pin);
       _fprop_at(*pin);
@@ -966,6 +1032,7 @@ void Timer::_build_prop_tasks() {
     }
   }
 
+  _prof::stop_timer("_build_prop_tasks");
 }
 
 // Procedure: _clear_prop_tasks
@@ -993,6 +1060,7 @@ void Timer::update_timing() {
 
 // Function: _update_timing
 void Timer::_update_timing() {
+  _prof::setup_timer("_update_timing");
   
   // Timing is update-to-date
   if(!_lineage) {
@@ -1001,7 +1069,9 @@ void Timer::_update_timing() {
   }
 
   // materialize the lineage
+  _prof::setup_timer("_update_timing__taskflow_read");
   _executor.run(_taskflow).wait();
+  _prof::stop_timer("_update_timing__taskflow_read");
   _taskflow.clear();
   _lineage.reset();
   
@@ -1010,6 +1080,67 @@ void Timer::_update_timing() {
     _insert_full_timing_frontiers();
   }
 
+  // explore propagation candidates
+  _build_prop_cands();
+  
+  _prof::setup_timer("_update_timing__taskflow_frontier");
+  _executor.run(_taskflow).wait();
+  _prof::stop_timer("_update_timing__taskflow_frontier");
+  
+  _taskflow.clear();
+
+#if 0
+  // test rc timing time  (clear state after one computation)
+  _build_rc_timing_tasks();
+
+  _prof::setup_timer("_update_timing__taskflow_rctiming(test)");
+  _prof::init_tasktimers();
+  _executor.run(_taskflow).wait();
+  _prof::finalize_tasktimers();
+  _prof::stop_timer("_update_timing__taskflow_rctiming(test)");
+  
+  _taskflow.clear();
+  for(auto &p: _nets) {
+    p.second._test_flat_rct(); // clear state
+    p.second._rc_timing_updated = false;
+  }
+#endif
+  
+  // build rc timing tasks.
+  _build_rc_timing_tasks();
+  
+  _prof::setup_timer("_update_timing__taskflow_rctiming");
+  _prof::init_tasktimers();
+  _executor.run(_taskflow).wait();
+  _prof::finalize_tasktimers();
+  _prof::stop_timer("_update_timing__taskflow_rctiming");
+
+  _taskflow.clear();
+
+  // clear the rc timing tasks
+  _clear_rc_timing_tasks();
+
+#if 0
+  //debug output
+  for(auto &[s, net] : _nets) {
+    std::cout << "Net " << s << std::endl;
+    Rct *r1 = std::get_if<Rct>(&net._rct);
+    FlatRct *r2 = std::get_if<FlatRct>(&net._rct);
+    if(r1) {
+      for(auto const &[name, node] : r1->_nodes) {
+        std::cout << "Rct: " << name << ' ' << node.cap((Split)0, (Tran)0) << ' ' << node._load[0][0] << ' ' << node._delay[0][0] << ' ' << node._ldelay[0][0] << ' ' << node._impulse[0][0] << std::endl;
+      }
+    }
+    if(r2) {
+      for(auto const &[name, id] : r2->name2id) {
+        int o = (r2->arr_start + r2->bfs_reverse_order_map[id]) * 4;
+        auto const &st = *(r2->_stor);
+        std::cout << "FlatRct: " << name << ' ' << st.cap[o] << ' ' << st.load[o] << ' ' << st.delay[o] << ' ' << st.ldelay[o] << ' ' << st.impulse[o] << std::endl;
+      }
+    }
+  }
+#endif
+
   // build propagation tasks
   _build_prop_tasks();
 
@@ -1017,7 +1148,9 @@ void Timer::_update_timing() {
   //_taskflow.dump(std::cout);
 
   // Execute the task
+  _prof::setup_timer("_update_timing__taskflow_prop");
   _executor.run(_taskflow).wait();
+  _prof::stop_timer("_update_timing__taskflow_prop");
   _taskflow.clear();
   
   // Clear the propagation tasks.
@@ -1028,6 +1161,7 @@ void Timer::_update_timing() {
 
   // clear the state
   _remove_state();
+  _prof::stop_timer("_update_timing");
 }
 
 // Procedure: _update_area

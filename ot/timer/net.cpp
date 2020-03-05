@@ -1,4 +1,7 @@
 #include <ot/timer/net.hpp>
+#include <deque>
+#include <ot/cuda/rct.cuh>
+#include <ot/timer/_prof.hpp>
 
 namespace ot {
 
@@ -232,6 +235,131 @@ float Rct::total_ncap() const {
 
 // ------------------------------------------------------------------------------------------------
 
+// flat rct calculation on cpu
+void FlatRctStorage::_update_timing_cuda() {
+  if(!arr_starts.size()) {
+    OT_LOGE("rct storage update timing: not initialized");
+    return;
+  }
+
+  _prof::setup_timer("_update_timing_cuda :: data preparation");
+  load.resize(total_num_nodes * 4);
+  delay.resize(total_num_nodes * 4);
+  ldelay.resize(total_num_nodes * 4);
+  impulse.resize(total_num_nodes * 4);
+  // has: total_num_nodes, arr_starts, pid, pres, cap, load, delay, ldelay, impulse
+
+  RctCUDA rct_cuda;
+  rct_cuda.num_nets = arr_starts.size() - 1;
+  rct_cuda.total_num_nodes = total_num_nodes;
+#define COPY_PDATA(arr) rct_cuda.arr = arr.data();
+  COPY_PDATA(arr_starts);
+  COPY_PDATA(pid);
+  COPY_PDATA(pres);
+  COPY_PDATA(cap);
+  COPY_PDATA(load);
+  COPY_PDATA(delay);
+  COPY_PDATA(ldelay);
+  COPY_PDATA(impulse);
+#undef COPY_PDATA
+
+  _prof::stop_timer("_update_timing_cuda :: data preparation");
+
+  
+  _prof::setup_timer("_update_timing_cuda :: rct_compute_cuda");
+  rct_compute_cuda(rct_cuda);
+  _prof::stop_timer("_update_timing_cuda :: rct_compute_cuda");
+}
+
+// Sequential flat rct calculation
+// Just for debugging.
+void FlatRctStorage::_update_timing_cpu() {
+  if(!arr_starts.size()) {
+    OT_LOGE("rct storage update timing: not initialized");
+    return;
+  }
+
+  load.resize(total_num_nodes * 4);
+  delay.resize(total_num_nodes * 4);
+  ldelay.resize(total_num_nodes * 4);
+  impulse.resize(total_num_nodes * 4);
+  // has: total_num_nodes, arr_starts, pid, pres, cap, load, delay, ldelay, impulse
+
+  for(size_t net_id = 0; net_id < arr_starts.size() - 1; ++net_id) {
+    for(unsigned int el_rf_offset = 0; el_rf_offset < MAX_SPLIT_TRAN; ++el_rf_offset) {
+      int st = arr_starts[net_id], ed = arr_starts[net_id + 1];
+      int st4 = st * 4 + el_rf_offset, ed4 = ed * 4 + el_rf_offset;
+      int rst4 = ed4 - 4, red4 = st4;   // red4 = st4, jumping over the root
+
+      // update load from cap
+      // and init array
+      for(int i = st4; i < ed4; i += 4) {
+        load[i] = cap[i];
+        delay[i] = ldelay[i] = impulse[i] = 0;
+      }
+
+      // update load from downstream to upstream
+      for(int i = rst4, j = ed - 1; i > red4; i -= 4, --j) {
+        int prev = i - pid[j] * 4;
+        load[prev] += load[i];
+      }
+
+      // update delay from upstream to downstream
+      for(int i = st4 + 4, j = st + 1; i < ed4; i += 4, ++j) {
+        int prev = i - pid[j] * 4;
+        delay[i] += delay[prev] + load[i] * pres[j];
+      }
+
+      // update cap*delay from downstream to upstream
+      for(int i = rst4, j = ed - 1; i > red4; i -= 4, --j) {
+        int prev = i - pid[j] * 4;
+        ldelay[i] += cap[i] * delay[i];
+        ldelay[prev] += ldelay[i];
+      }
+      ldelay[st4] += cap[st4] * delay[st4];
+
+      // update beta from upstream to downstream
+      for(int i = st4 + 4, j = st + 1; i < ed4; i += 4, ++j) {
+        int prev = i - pid[j] * 4;
+        impulse[i] += impulse[prev] + ldelay[i] * pres[j];
+      }
+
+      // beta -> impulse
+      for(int i = st4; i < ed4; i += 4) {
+        float t = delay.at(i);
+        impulse[i] = 2 * impulse.at(i) - t * t;
+      }
+    }
+  }
+}
+
+// ------------------------------------------------------------------------------------------------
+
+float FlatRct::slew(int id, Split m, Tran t, float si) const {
+  float impulse = _stor->impulse[(arr_start + bfs_reverse_order_map[id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+  return si < 0.0f ? -std::sqrt(si*si + impulse) : std::sqrt(si*si + impulse);
+}
+
+float FlatRct::delay(int id, Split m, Tran t) const {
+  return _stor->delay[(arr_start + bfs_reverse_order_map[id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+}
+
+void FlatRct::_scale_capacitance(float s) {
+  for(size_t i = 0; i < _num_nodes; ++i) {
+    for(int j = 0; j < MAX_SPLIT_TRAN; ++j) {
+      _stor->cap[(arr_start + i) * MAX_SPLIT_TRAN + j] *= s;
+    }
+  }
+}
+
+void FlatRct::_scale_resistance(float s) {
+  for(size_t i = 0; i < _num_nodes; ++i) { // i start from 1 also work?
+    _stor->pres[arr_start + i] *= s;
+  }
+}
+
+// ------------------------------------------------------------------------------------------------
+
 // Constructor
 Net::Net(const std::string& name) : 
   _name {name} {
@@ -272,6 +400,178 @@ void Net::_make_rct() {
   _rc_timing_updated = false;
 }
 
+// Procedure: _init_flat_rct
+// returns the size of this rctree
+size_t Net::_init_flat_rct(FlatRctStorage *_stor, int arr_start) {
+  // The construction of a flat rctree must be split into two
+  // procedures: init and make
+  // init is to allocate proper space for all rctrees in a Timer
+  // and make is to actually do the BFS and write to the space
+  // allocated in init.
+  // This ensures enough parallelization exploited at the
+  // time-consuming make step.
+
+  if(!_spef_net) return 0;
+
+  auto &rct = _rct.emplace<FlatRct>();
+  
+  rct._stor = _stor;
+  rct.arr_start = arr_start;
+  rct._num_nodes = _spef_net->ress.size() + 1;
+
+  return rct._num_nodes;   // assuming all are grounded caps
+}
+
+// Procedure: _test_flat_rct
+// for time profiling only
+// do some work and then reset the flat rctree.
+void Net::_test_flat_rct() {
+  // Step 1: refer to the flat rctree object created during init
+  auto prct = std::get_if<FlatRct>(&_rct);
+  if(!prct) return;
+  auto &rct = *prct;
+
+  rct.name2id.clear();
+  rct.bfs_order_map.resize(0);
+  rct.bfs_reverse_order_map.resize(0);
+}
+
+// Procedure: _make_flat_rct
+void Net::_make_flat_rct() {
+  if(!_spef_net) return;
+
+  _prof::intms st, amap_graph, abfs, acap;
+
+  // Step 1: refer to the flat rctree object created during init
+  auto prct = std::get_if<FlatRct>(&_rct);
+  if(!prct) return;
+  auto &rct = *prct;
+
+  size_t num_nodes = rct._num_nodes;
+  FlatRctStorage *_stor = rct._stor;
+
+  st = _prof::timestamp();
+
+  //rct.name2id.reserve(num_nodes);
+
+  // Step 2: build map std::string->int
+  int cnt = 0;
+  for(const auto& [node1, node2, cap] : _spef_net->caps) {
+    (void)cap;
+
+    // ground capacitance
+    if(node2.empty()) {
+      rct.name2id[node1] = cnt;
+      ++cnt;
+    }
+    else {
+      OT_LOGE("flat rct make encounters coupling capacitance, which is not supported by flat rct");
+      return;
+    }
+    // TODO: coupling capacitance
+  }
+
+  // Step 3: Build graph
+  std::vector<std::vector<std::pair<int, float>>> edges(num_nodes);
+
+  for(const auto& [node1, node2, res] : _spef_net->ress) {
+    int a, b;
+    if(auto const &it = rct.name2id.find(node1); it != rct.name2id.end()) {
+      a = it->second;
+    }
+    else {
+      rct.name2id[node1] = a = cnt++;
+    }
+    if(auto const &it = rct.name2id.find(node2); it != rct.name2id.end()) {
+      b = it->second;
+    }
+    else {
+      rct.name2id[node2] = b = cnt++;
+    }
+
+    edges[a].emplace_back(b, res);
+    edges[b].emplace_back(a, res);
+  }
+
+  amap_graph = _prof::timestamp();
+
+  // Step 4: BFS to compute order
+  std::deque<int> q;
+  rct.bfs_order_map.resize(num_nodes);
+  rct.bfs_reverse_order_map.resize(num_nodes);
+  std::vector<char> vis(num_nodes, false);
+
+  int root;
+  if(auto it = rct.name2id.find(_root->name()); it == rct.name2id.end()) {
+    OT_LOGE("flat rct make cannot locate root in spef tree");
+    return;
+  }
+  else root = it->second;
+
+  vis[root] = true;
+  q.push_back(root);
+  rct.bfs_order_map[0] = root;
+  rct.bfs_reverse_order_map[root] = 0;
+  cnt = 1;
+
+  while(!q.empty()) {
+    int u = q.front(); q.pop_front();
+    int uid = rct.bfs_reverse_order_map[u];
+
+    for(auto const &[v, res] : edges[u]) {
+      if(!vis[v]) {
+        vis[v] = true;
+        rct.bfs_order_map[cnt] = v;
+        rct.bfs_reverse_order_map[v] = cnt;
+        _stor->pid[rct.arr_start + cnt] = cnt - uid;
+        _stor->pres[rct.arr_start + cnt] = res;
+        ++cnt;
+        q.push_back(v);
+      }
+    }
+  }
+
+  abfs = _prof::timestamp();
+
+  // Step 5: set cap according to bfs order
+
+  for(size_t i = 0; i < num_nodes * 4; ++i) {
+    _stor->cap[rct.arr_start * 4 + i] = 0;
+  }
+
+  for(const auto& [node1, node2, cap] : _spef_net->caps) {
+    (void)node2;
+    int pos = rct.bfs_reverse_order_map[rct.name2id[node1]];
+    for(int i = 0; i < MAX_SPLIT_TRAN; ++i) {
+      _stor->cap[(rct.arr_start + pos) * MAX_SPLIT_TRAN + i] = cap;
+    }
+  }
+
+  for(auto pin : _pins) {
+    if(auto it = rct.name2id.find(pin->name()); it != rct.name2id.end()) {
+      if(rct.bfs_reverse_order_map[it->second] == 0) continue; // ignore the root
+      FOR_EACH_EL_RF(el, rf) {
+        _stor->cap[(rct.arr_start + rct.bfs_reverse_order_map[it->second]) * MAX_SPLIT_TRAN + el * MAX_TRAN + rf]
+          += pin->cap(el, rf);
+      }
+    }
+    else {
+      OT_LOGE("pin ", pin->name(), " not found in rctree ", _name);
+    }
+  }
+
+  acap = _prof::timestamp();
+
+  // update task timers
+  _prof::t_map += amap_graph - st;
+  _prof::t_bfs += abfs - amap_graph;
+  _prof::t_cap += acap - abfs;
+
+  //_spef_net.reset();
+  
+  _rc_timing_updated = false;
+}
+
 // Procedure: _scale_capacitance
 void Net::_scale_capacitance(float s) {
 
@@ -280,6 +580,9 @@ void Net::_scale_capacitance(float s) {
     [&] (EmptyRct& rct) {
     },
     [&] (Rct& rct) {
+      rct._scale_capacitance(s);
+    },
+    [&] (FlatRct& rct) {
       rct._scale_capacitance(s);
     }
   }, _rct);
@@ -296,10 +599,39 @@ void Net::_scale_resistance(float s) {
     },
     [&] (Rct& rct) {
       rct._scale_resistance(s);
+    },
+    [&] (FlatRct& rct) {
+      rct._scale_resistance(s);
     }
   }, _rct);
   
   _rc_timing_updated = false;
+}
+
+void Net::_update_rc_timing_flat() {
+  if(_rc_timing_updated) {
+    return;
+  }
+
+  _make_flat_rct();
+  
+  std::visit(Functors{
+    [&] (EmptyRct& rct) {
+      FOR_EACH_EL_RF(el, rf) {
+        rct.load[el][rf] = std::accumulate(_pins.begin(), _pins.end(), 0.0f, 
+          [this, el=el, rf=rf] (float v, Pin* pin) {
+            return pin == _root ? v : v + pin->cap(el, rf);
+          }
+        );
+      }
+    },
+    [&] (Rct& rct) {
+    },
+    [&] (FlatRct &rct) {
+    }
+    }, _rct);
+  
+  _rc_timing_updated = true; // NOT really, for we also need to compute within the Timer-global FlatRctStorage
 }
 
 // Procedure: _update_rc_timing
@@ -338,6 +670,9 @@ void Net::_update_rc_timing() {
         }
       }
       rct.update_rc_timing();
+    },
+    [&] (FlatRct &rct) {
+      OT_LOGE("Net::_update_timing doesn't support flat rctree");
     }
   }, _rct);
 
@@ -401,6 +736,9 @@ float Net::_load(Split m, Tran t) const {
     },
     [&] (const Rct& rct) {
       return rct._root->_load[m][t];
+    },
+    [&] (const FlatRct &rct) {
+      return rct._stor->load[rct.arr_start * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
     }
   }, _rct);
 }
@@ -420,6 +758,12 @@ std::optional<float> Net::_slew(Split m, Tran t, float si, Pin& to) const {
         return node->slew(m, t, si);
       }
       else return std::nullopt;
+    },
+    [&] (const FlatRct& rct) -> std::optional<float> {
+      if(auto it = rct.name2id.find(to._name); it != rct.name2id.end()) {
+        return rct.slew(it->second, m, t, si);
+      }
+      else return std::nullopt;
     }
   }, _rct);
 }
@@ -436,7 +780,16 @@ std::optional<float> Net::_delay(Split m, Tran t, Pin& to) const {
     },
     [&] (const Rct& rct) -> std::optional<float> {
       if(auto node = rct.node(to._name); node) {
+        //if(m == 0 && t == 0) OT_LOGI("delay ", node->_name, " ", node->_delay[0][0]);
         return node->delay(m, t);
+      }
+      else return std::nullopt;
+    },
+    [&] (const FlatRct& rct) -> std::optional<float> {
+      
+      if(auto it = rct.name2id.find(to._name); it != rct.name2id.end()) {
+        //if(m == 0 && t == 0) OT_LOGI("delay ", to._name, " ", rct._stor->delay[(rct.arr_start + rct.bfs_reverse_order_map[it->second]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t]);
+        return rct.delay(it->second, m, t);
       }
       else return std::nullopt;
     }

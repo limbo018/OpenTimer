@@ -1,0 +1,9 @@
+enable_cuda
+cd benchmark/netcard/
+read_celllib -early netcard_iccad_Early.lib
+read_celllib -late netcard_iccad_Late.lib
+read_verilog netcard_iccad.v
+read_spef netcard_iccad.spef
+read_timing netcard_iccad.timing
+report_timing
+

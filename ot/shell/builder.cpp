@@ -390,6 +390,36 @@ void Shell::_disable_cppr() {
   _timer.cppr(false);
 }
 
+// ------------------------------------------------------------------------------------------------
+// cuda control
+// yes, just replace cppr=>cuda
+
+// Procedure: cuda
+void Shell::_cuda() {
+
+  std::string token;
+
+  if(_is >> token; token == "-disable") {
+    _timer.cuda(false);
+  }
+  else if(token == "-enable") {
+    _timer.cuda(true);
+  }
+  else {
+    _es << "usage: cuda -disable|-enable\n";
+  }
+}
+
+// Procedure: _enable_cuda
+void Shell::_enable_cuda() {
+  _timer.cuda(true);
+}
+
+// Procedure: _disable_cuda
+void Shell::_disable_cuda() {
+  _timer.cuda(false);
+}
+
 
 };  // end of namespace ot. -----------------------------------------------------------------------
 

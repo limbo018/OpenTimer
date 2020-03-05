@@ -88,6 +88,26 @@ message(STATUS "PYTHON_EXECUTABLE: ${PYTHON_EXECUTABLE}")
 #set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
 
+# CUDA
+find_package(CUDA REQUIRED)
+
+# if (NOT CMAKE_CUDA_FLAGS)
+#     set(CMAKE_CUDA_FLAGS "-arch=sm_60"
+#         "-gencode=arch=compute_60,code=sm_60"
+#         "-gencode=arch=compute_61,code=sm_61"
+#         "-gencode=arch=compute_70,code=sm_70"
+#         )
+#     if (${CUDA_VERSION_MAJOR} VERSION_GREATER "9")
+#         list(APPEND CMAKE_CUDA_FLAGS
+#             "-gencode=arch=compute_75,code=sm_75"
+#             "-gencode=arch=compute_75,code=compute_75"
+#             )
+#     endif(${CUDA_VERSION_MAJOR} VERSION_GREATER "9")
+# endif(NOT CMAKE_CUDA_FLAGS)
+# message("-- CMAKE_CUDA_FLAGS: ${CMAKE_CUDA_FLAGS}")
+
+set(CUDA_NVCC_FLAGS -O2)
+
 # Tclsh module
 include(FindTclsh)
 if (NOT TCL_TCLSH)
@@ -135,6 +155,7 @@ set(OT_CPP
   ot/timer/gate.cpp
   ot/timer/dump.cpp
   ot/timer/pin.cpp
+  ot/timer/_prof.cpp
   ot/liberty/celllib.cpp
   ot/liberty/cell.cpp
   ot/liberty/cellpin.cpp
@@ -156,6 +177,12 @@ set(OT_CPP
 # Add OpenTimer library
 add_library(OpenTimer ${OT_CPP})
 
+set(OT_CUDA
+  ot/cuda/rct.cu
+)
+
+cuda_add_library(OpenTimerCUDA STATIC ${OT_CUDA})
+
 
 ###########################################################
 # Executables
@@ -165,6 +192,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
 
 list(APPEND OT_LINK_FLAGS "")
 list(APPEND OT_LINK_FLAGS OpenTimer)
+list(APPEND OT_LINK_FLAGS OpenTimerCUDA)
 list(APPEND OT_LINK_FLAGS Threads::Threads)
 list(APPEND OT_LINK_FLAGS stdc++fs)
 message(STATUS "OT_LINK_FLAGS: ${OT_LINK_FLAGS}")

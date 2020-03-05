@@ -1,4 +1,5 @@
 #include <ot/timer/timer.hpp>
+#include <ot/timer/_prof.hpp>
 
 namespace ot {
 
@@ -397,9 +398,11 @@ std::vector<Path> Timer::report_timing(PathGuide guide) {
 std::vector<Path> Timer::_report_timing(std::vector<Endpoint*>&& epts, size_t K) {
 
   assert(epts.size() <= K);
+  _prof::setup_timer("_report_timing");
   
   // No need to report anything.
   if(K == 0 || epts.empty()) {
+    _prof::stop_timer("_report_timing");
     return {};
   }
 
@@ -416,6 +419,7 @@ std::vector<Path> Timer::_report_timing(std::vector<Endpoint*>&& epts, size_t K)
 
     //assert(std::fabs(*sfxt.slack() - paths[0].slack) < 0.1f);
     _recover_datapath(paths[0], sfxt);
+    _prof::stop_timer("_report_timing");
     return paths;
   }
   
@@ -441,6 +445,7 @@ std::vector<Path> Timer::_report_timing(std::vector<Endpoint*>&& epts, size_t K)
   _executor.run(_taskflow).wait();
   _taskflow.clear();
 
+  _prof::stop_timer("_report_timing");
   return heap.extract();
 }
 

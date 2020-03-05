@@ -1,0 +1,979 @@
+Startpoint    : g2303130_u0_c
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  rise  g2303130_u0_c
+        pin      31.058      31.058  rise  g2303130_u0:B1 (AOI22_X1)
+        pin      22.305      53.363  fall  g2303130_u0:ZN (AOI22_X1)
+        pin       6.427      59.790  fall  g1917005_u0:A1 (NAND4_X4)
+        pin       7.959      67.749  rise  g1917005_u0:ZN (NAND4_X4)
+        pin      23.547      91.296  rise  g1917004_u0:A (INV_X4)
+        pin       5.941      97.237  fall  g1917004_u0:ZN (INV_X4)
+        pin      40.288     137.524  fall  g1916790_u0:A (INV_X8)
+        pin       5.253     142.777  rise  g1916790_u0:ZN (INV_X8)
+        pin      72.258     215.035  rise  g1916675_u0:A (INV_X1)
+        pin      13.162     228.197  fall  g1916675_u0:ZN (INV_X1)
+        pin      54.001     282.198  fall  g1916673_u0:A (INV_X1)
+        pin      14.653     296.852  rise  g1916673_u0:ZN (INV_X1)
+        pin     123.242     420.094  rise  g1858628_u0:A1 (NAND2_X1)
+        pin       9.468     429.562  fall  g1858628_u0:ZN (NAND2_X1)
+        pin       6.731     436.293  fall  g1775797_u0:A2 (NAND2_X1)
+        pin      10.523     446.815  rise  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     464.095  rise  g1737992_u0:A1 (NAND2_X1)
+        pin       9.374     473.470  fall  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     495.702  fall  g1664274_u0:A2 (NAND2_X1)
+        pin      11.680     507.382  rise  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162     539.544  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                 539.544        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint       3.396    7835.687        library hold_rising
+   required                7835.687        data required time
+------------------------------------------------------
+      slack               -7296.143        VIOLATED
+
+Startpoint    : g2303130_u0_c
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  fall  g2303130_u0_c
+        pin      31.058      31.058  fall  g2303130_u0:B1 (AOI22_X1)
+        pin      40.494      71.552  rise  g2303130_u0:ZN (AOI22_X1)
+        pin       6.427      77.979  rise  g1917005_u0:A1 (NAND4_X4)
+        pin      14.450      92.429  fall  g1917005_u0:ZN (NAND4_X4)
+        pin      23.547     115.976  fall  g1917004_u0:A (INV_X4)
+        pin       4.312     120.289  rise  g1917004_u0:ZN (INV_X4)
+        pin      40.288     160.576  rise  g1916790_u0:A (INV_X8)
+        pin       6.702     167.278  fall  g1916790_u0:ZN (INV_X8)
+        pin      72.258     239.536  fall  g1916675_u0:A (INV_X1)
+        pin      15.493     255.029  rise  g1916675_u0:ZN (INV_X1)
+        pin      54.001     309.030  rise  g1916673_u0:A (INV_X1)
+        pin      12.880     321.910  fall  g1916673_u0:ZN (INV_X1)
+        pin     123.242     445.152  fall  g1858628_u0:A1 (NAND2_X1)
+        pin       9.085     454.236  rise  g1858628_u0:ZN (NAND2_X1)
+        pin       6.731     460.968  rise  g1775797_u0:A2 (NAND2_X1)
+        pin      11.611     472.579  fall  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     489.859  fall  g1737992_u0:A1 (NAND2_X1)
+        pin       8.457     498.316  rise  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     520.548  rise  g1664274_u0:A2 (NAND2_X1)
+        pin      12.545     533.092  fall  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162     565.255  fall  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                 565.255        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint     -26.246    7806.045        library hold_rising
+   required                7806.044        data required time
+------------------------------------------------------
+      slack               -7240.790        VIOLATED
+
+Startpoint    : g2302638_u0_c
+Endpoint      : ram0_aram_1_u0_memarr_reg_1699__1__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  rise  g2302638_u0_c
+        pin      27.331      27.331  rise  g2302638_u0:B1 (AOI22_X1)
+        pin      20.584      47.915  fall  g2302638_u0:ZN (AOI22_X1)
+        pin       8.962      56.877  fall  g1918136_u0:A1 (NAND4_X2)
+        pin      10.459      67.336  rise  g1918136_u0:ZN (NAND4_X2)
+        pin      22.625      89.961  rise  g1918135_u0:A (INV_X2)
+        pin       8.024      97.986  fall  g1918135_u0:ZN (INV_X2)
+        pin      89.842     187.827  fall  g1918134_u0:A (INV_X2)
+        pin       8.941     196.768  rise  g1918134_u0:ZN (INV_X2)
+        pin      82.399     279.167  rise  g1918106_u0:A (INV_X1)
+        pin      13.314     292.481  fall  g1918106_u0:ZN (INV_X1)
+        pin      34.043     326.523  fall  g1918105_u0:A (INV_X1)
+        pin      16.638     343.161  rise  g1918105_u0:ZN (INV_X1)
+        pin      45.199     388.360  rise  g1863643_u0:A1 (NAND2_X1)
+        pin       8.843     397.204  fall  g1863643_u0:ZN (NAND2_X1)
+        pin       6.080     403.283  fall  g1785323_u0:A2 (NAND2_X1)
+        pin      10.423     413.706  rise  g1785323_u0:ZN (NAND2_X1)
+        pin      12.038     425.744  rise  g1747379_u0:A1 (NAND2_X1)
+        pin      10.154     435.899  fall  g1747379_u0:ZN (NAND2_X1)
+        pin      30.071     465.969  fall  g1684741_u0:A2 (NAND2_X1)
+        pin      10.499     476.468  rise  g1684741_u0:ZN (NAND2_X1)
+        pin      21.228     497.696  rise  ram0_aram_1_u0_memarr_reg_1699__1__u0:D (DFF_X2)
+    arrival                 497.696        data arrival time
+
+related pin    7713.601    7713.601  rise  ram0_aram_1_u0_memarr_reg_1699__1__u0:CK (DFF_X2)
+ constraint       3.200    7716.801        library hold_rising
+   required                7716.801        data required time
+------------------------------------------------------
+      slack               -7219.104        VIOLATED
+
+Startpoint    : g2302638_u0_c
+Endpoint      : ram0_aram_1_u0_memarr_reg_1699__1__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  fall  g2302638_u0_c
+        pin      27.331      27.331  fall  g2302638_u0:B1 (AOI22_X1)
+        pin      37.349      64.680  rise  g2302638_u0:ZN (AOI22_X1)
+        pin       8.962      73.643  rise  g1918136_u0:A1 (NAND4_X2)
+        pin      18.230      91.872  fall  g1918136_u0:ZN (NAND4_X2)
+        pin      22.625     114.497  fall  g1918135_u0:A (INV_X2)
+        pin       7.437     121.934  rise  g1918135_u0:ZN (INV_X2)
+        pin      89.842     211.776  rise  g1918134_u0:A (INV_X2)
+        pin       8.796     220.571  fall  g1918134_u0:ZN (INV_X2)
+        pin      82.399     302.970  fall  g1918106_u0:A (INV_X1)
+        pin      15.519     318.489  rise  g1918106_u0:ZN (INV_X1)
+        pin      34.043     352.532  rise  g1918105_u0:A (INV_X1)
+        pin      14.068     366.600  fall  g1918105_u0:ZN (INV_X1)
+        pin      45.199     411.799  fall  g1863643_u0:A1 (NAND2_X1)
+        pin       8.148     419.947  rise  g1863643_u0:ZN (NAND2_X1)
+        pin       6.080     426.027  rise  g1785323_u0:A2 (NAND2_X1)
+        pin      11.511     437.538  fall  g1785323_u0:ZN (NAND2_X1)
+        pin      12.038     449.576  fall  g1747379_u0:A1 (NAND2_X1)
+        pin       9.281     458.858  rise  g1747379_u0:ZN (NAND2_X1)
+        pin      30.071     488.928  rise  g1684741_u0:A2 (NAND2_X1)
+        pin      11.421     500.349  fall  g1684741_u0:ZN (NAND2_X1)
+        pin      21.228     521.577  fall  ram0_aram_1_u0_memarr_reg_1699__1__u0:D (DFF_X2)
+    arrival                 521.577        data arrival time
+
+related pin    7713.601    7713.601  rise  ram0_aram_1_u0_memarr_reg_1699__1__u0:CK (DFF_X2)
+ constraint     -26.605    7686.997        library hold_rising
+   required                7686.996        data required time
+------------------------------------------------------
+      slack               -7165.419        VIOLATED
+
+Startpoint    : g2466599_u0_b
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  fall  g2466599_u0_b
+        pin       9.629       9.629  fall  g2466599_u0:A2 (NAND2_X1)
+        pin       9.586      19.215  rise  g2466599_u0:ZN (NAND2_X1)
+        pin       8.297      27.512  rise  g2466598_u0:A1 (NAND2_X1)
+        pin       8.908      36.420  fall  g2466598_u0:ZN (NAND2_X1)
+        pin      20.708      57.128  fall  g2466598_u1:A (INV_X1)
+        pin       7.365      64.493  rise  g2466598_u1:ZN (INV_X1)
+        pin      20.533      85.025  rise  g2466590_u0:A3 (NAND3_X2)
+        pin      17.420     102.445  fall  g2466590_u0:ZN (NAND3_X2)
+        pin      26.671     129.116  fall  g2466589_u0:A1 (NAND2_X2)
+        pin       6.245     135.361  rise  g2466589_u0:ZN (NAND2_X2)
+        pin      13.151     148.512  rise  g2466588_u0:A1 (NAND2_X4)
+        pin       6.589     155.101  fall  g2466588_u0:ZN (NAND2_X4)
+        pin      57.267     212.368  fall  g2102120_u0:A1 (NAND2_X2)
+        pin       7.017     219.386  rise  g2102120_u0:ZN (NAND2_X2)
+        pin      12.016     231.401  rise  g2102119_u0:A (INV_X4)
+        pin       6.244     237.646  fall  g2102119_u0:ZN (INV_X4)
+        pin      50.443     288.089  fall  g2102118_u0:A (INV_X1)
+        pin       8.848     296.937  rise  g2102118_u0:ZN (INV_X1)
+        pin      11.637     308.574  rise  g2091076_u0:A2 (NOR2_X4)
+        pin      10.449     319.023  fall  g2091076_u0:ZN (NOR2_X4)
+        pin      75.300     394.323  fall  g2091071_u0:A (INV_X2)
+        pin       4.917     399.240  rise  g2091071_u0:ZN (INV_X2)
+        pin       5.714     404.954  rise  g2091071_u1:A (INV_X4)
+        pin       6.088     411.042  fall  g2091071_u1:ZN (INV_X4)
+        pin     120.187     531.229  fall  g2091070_u0:A (INV_X2)
+        pin       7.917     539.146  rise  g2091070_u0:ZN (INV_X2)
+        pin      27.612     566.758  rise  g2081014_u0:A2 (NOR2_X2)
+        pin       9.901     576.659  fall  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     585.723  fall  g2464199_u0:A (INV_X1)
+        pin       7.589     593.311  rise  g2464199_u0:ZN (INV_X1)
+        pin       6.721     600.032  rise  g2464187_u0:A (INV_X1)
+        pin       7.389     607.422  fall  g2464187_u0:ZN (INV_X1)
+        pin       5.177     612.599  fall  g2464187_u1:A (INV_X2)
+        pin       9.058     621.656  rise  g2464187_u1:ZN (INV_X2)
+        pin     205.689     827.345  rise  g2007921_u0:A2 (NAND2_X1)
+        pin      13.245     840.590  fall  g2007921_u0:ZN (NAND2_X1)
+        pin      21.648     862.237  fall  g1775797_u0:A1 (NAND2_X1)
+        pin       8.434     870.672  rise  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     887.952  rise  g1737992_u0:A1 (NAND2_X1)
+        pin       9.374     897.326  fall  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     919.558  fall  g1664274_u0:A2 (NAND2_X1)
+        pin      11.680     931.238  rise  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162     963.400  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                 963.400        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint       3.396    7835.687        library hold_rising
+   required                7835.688        data required time
+------------------------------------------------------
+      slack               -6872.288        VIOLATED
+
+Startpoint    : g2302873_u0_c
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  rise  g2302873_u0_c
+        pin       7.439       7.439  rise  g2302873_u0:B1 (AOI22_X1)
+        pin      21.266      28.705  fall  g2302873_u0:ZN (AOI22_X1)
+        pin      22.633      51.337  fall  g2268669_u0:A2 (NAND2_X1)
+        pin      17.075      68.412  rise  g2268669_u0:ZN (NAND2_X1)
+        pin      33.038     101.450  rise  g2466186_u0:B1 (AOI22_X1)
+        pin      27.928     129.378  fall  g2466186_u0:ZN (AOI22_X1)
+        pin      36.074     165.452  fall  g2466185_u0:A (INV_X1)
+        pin      12.514     177.966  rise  g2466185_u0:ZN (INV_X1)
+        pin      22.164     200.130  rise  g2466184_u0:A1 (NAND2_X2)
+        pin       9.731     209.861  fall  g2466184_u0:ZN (NAND2_X2)
+        pin      74.356     284.217  fall  g2104141_u0:A (INV_X2)
+        pin       8.643     292.859  rise  g2104141_u0:ZN (INV_X2)
+        pin      88.151     381.010  rise  g2091118_u0:A1 (NAND2_X4)
+        pin       7.206     388.216  fall  g2091118_u0:ZN (NAND2_X4)
+        pin      29.097     417.313  fall  g2091102_u0:A (INV_X4)
+        pin       4.970     422.283  rise  g2091102_u0:ZN (INV_X4)
+        pin     102.477     524.760  rise  g2091100_u0:A (INV_X2)
+        pin       8.848     533.608  fall  g2091100_u0:ZN (INV_X2)
+        pin      37.482     571.090  fall  g2081014_u0:A1 (NOR2_X2)
+        pin      13.062     584.152  rise  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     593.215  rise  g2464199_u0:A (INV_X1)
+        pin       8.423     601.638  fall  g2464199_u0:ZN (INV_X1)
+        pin      18.857     620.495  fall  g2464198_u0:A (INV_X2)
+        pin       8.441     628.936  rise  g2464198_u0:ZN (INV_X2)
+        pin     158.346     787.282  rise  g2464194_u0:A (INV_X1)
+        pin      12.948     800.230  fall  g2464194_u0:ZN (INV_X1)
+        pin      40.903     841.132  fall  g2464192_u0:A (INV_X2)
+        pin       7.998     849.130  rise  g2464192_u0:ZN (INV_X2)
+        pin      27.982     877.113  rise  g1858628_u0:A2 (NAND2_X1)
+        pin      10.846     887.959  fall  g1858628_u0:ZN (NAND2_X1)
+        pin       6.731     894.690  fall  g1775797_u0:A2 (NAND2_X1)
+        pin      10.523     905.212  rise  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     922.492  rise  g1737992_u0:A1 (NAND2_X1)
+        pin       9.374     931.867  fall  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     954.099  fall  g1664274_u0:A2 (NAND2_X1)
+        pin      11.680     965.779  rise  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162     997.941  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                 997.941        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint       3.396    7835.687        library hold_rising
+   required                7835.687        data required time
+------------------------------------------------------
+      slack               -6837.746        VIOLATED
+
+Startpoint    : e0_oc_ethreg1_irq_txe_reg_u0:CK
+Endpoint      : pci_irq
+Analysis type : max
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+        pin    6416.715    6416.715  rise  e0_oc_ethreg1_irq_txe_reg_u0:CK (DFF_X2)
+        pin     110.627    6527.342  fall  e0_oc_ethreg1_irq_txe_reg_u0:Q (DFF_X2)
+        pin      17.396    6544.738  fall  e0_oc_ethreg1_irq_txe_reg_u1:A (INV_X1)
+        pin       9.047    6553.785  rise  e0_oc_ethreg1_irq_txe_reg_u1:ZN (INV_X1)
+        pin      33.327    6587.112  rise  g2355379_u0:A (INV_X1)
+        pin       9.551    6596.664  fall  g2355379_u0:ZN (INV_X1)
+        pin      17.792    6614.456  fall  g2309417_u0:B2 (AOI22_X1)
+        pin      48.066    6662.522  rise  g2309417_u0:ZN (AOI22_X1)
+        pin      16.590    6679.112  rise  g2299501_u0:A2 (NAND3_X1)
+        pin      17.911    6697.023  fall  g2299501_u0:ZN (NAND3_X1)
+        pin      18.246    6715.269  fall  g2289603_u0:A (AOI21_X1)
+        pin      43.290    6758.559  rise  g2289603_u0:ZN (AOI21_X1)
+        pin      27.757    6786.316  rise  irq_pad_pad_tri_u0:A2 (NAND2_X1)
+        pin      12.049    6798.365  fall  irq_pad_pad_tri_u0:ZN (NAND2_X1)
+        pin      10.361    6808.727  fall  irq_pad_pad_tri_u1:A (INV_X1)
+        pin       8.193    6816.919  rise  irq_pad_pad_tri_u1:ZN (INV_X1)
+       port      19.701    6836.621  rise  pci_irq
+    arrival                6836.621        data arrival time
+
+       port       0.000       0.000        output port delay
+   required                   0.000        data required time
+------------------------------------------------------
+      slack               -6836.621        VIOLATED
+
+Startpoint    : g2302873_u0_c
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  rise  g2302873_u0_c
+        pin       7.439       7.439  rise  g2302873_u0:B1 (AOI22_X1)
+        pin      21.266      28.705  fall  g2302873_u0:ZN (AOI22_X1)
+        pin      22.633      51.337  fall  g2268669_u0:A2 (NAND2_X1)
+        pin      17.075      68.412  rise  g2268669_u0:ZN (NAND2_X1)
+        pin      33.038     101.450  rise  g2466186_u0:B1 (AOI22_X1)
+        pin      27.928     129.378  fall  g2466186_u0:ZN (AOI22_X1)
+        pin      36.074     165.452  fall  g2466185_u0:A (INV_X1)
+        pin      12.514     177.966  rise  g2466185_u0:ZN (INV_X1)
+        pin      22.164     200.130  rise  g2466184_u0:A1 (NAND2_X2)
+        pin       9.731     209.861  fall  g2466184_u0:ZN (NAND2_X2)
+        pin      74.356     284.217  fall  g2104141_u0:A (INV_X2)
+        pin       8.643     292.859  rise  g2104141_u0:ZN (INV_X2)
+        pin      88.151     381.010  rise  g2091118_u0:A1 (NAND2_X4)
+        pin       7.206     388.216  fall  g2091118_u0:ZN (NAND2_X4)
+        pin      29.097     417.313  fall  g2091102_u0:A (INV_X4)
+        pin       4.970     422.283  rise  g2091102_u0:ZN (INV_X4)
+        pin     102.477     524.760  rise  g2091100_u0:A (INV_X2)
+        pin       8.848     533.608  fall  g2091100_u0:ZN (INV_X2)
+        pin      37.482     571.090  fall  g2081014_u0:A1 (NOR2_X2)
+        pin      13.062     584.152  rise  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     593.215  rise  g2464199_u0:A (INV_X1)
+        pin       8.423     601.638  fall  g2464199_u0:ZN (INV_X1)
+        pin       6.721     608.359  fall  g2464187_u0:A (INV_X1)
+        pin       6.065     614.424  rise  g2464187_u0:ZN (INV_X1)
+        pin       5.177     619.601  rise  g2464187_u1:A (INV_X2)
+        pin       9.228     628.829  fall  g2464187_u1:ZN (INV_X2)
+        pin     205.689     834.518  fall  g2007921_u0:A2 (NAND2_X1)
+        pin      13.456     847.974  rise  g2007921_u0:ZN (NAND2_X1)
+        pin      21.648     869.622  rise  g1775797_u0:A1 (NAND2_X1)
+        pin       9.335     878.956  fall  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     896.236  fall  g1737992_u0:A1 (NAND2_X1)
+        pin       8.457     904.693  rise  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     926.925  rise  g1664274_u0:A2 (NAND2_X1)
+        pin      12.545     939.470  fall  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162     971.632  fall  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                 971.632        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint     -26.246    7806.045        library hold_rising
+   required                7806.044        data required time
+------------------------------------------------------
+      slack               -6834.412        VIOLATED
+
+Startpoint    : g2302851_u0_a
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  rise  g2302851_u0_a
+        pin      22.516      22.516  rise  g2302851_u0:A1 (AOI22_X1)
+        pin      17.757      40.273  fall  g2302851_u0:ZN (AOI22_X1)
+        pin      23.711      63.984  fall  g2275560_u0:A2 (NAND2_X1)
+        pin      11.119      75.103  rise  g2275560_u0:ZN (NAND2_X1)
+        pin      17.120      92.223  rise  g2275560_u1:A (INV_X1)
+        pin      10.176     102.399  fall  g2275560_u1:ZN (INV_X1)
+        pin      31.932     134.331  fall  g2172902_u0:A1 (OAI22_X2)
+        pin      25.019     159.351  rise  g2172902_u0:ZN (OAI22_X2)
+        pin      44.041     203.391  rise  g2104139_u0:A1 (NOR2_X4)
+        pin       7.871     211.262  fall  g2104139_u0:ZN (NOR2_X4)
+        pin      38.345     249.607  fall  g2102120_u0:A2 (NAND2_X2)
+        pin       9.047     258.654  rise  g2102120_u0:ZN (NAND2_X2)
+        pin      12.016     270.670  rise  g2102119_u0:A (INV_X4)
+        pin       6.244     276.914  fall  g2102119_u0:ZN (INV_X4)
+        pin      50.443     327.357  fall  g2102118_u0:A (INV_X1)
+        pin       8.848     336.205  rise  g2102118_u0:ZN (INV_X1)
+        pin      11.637     347.842  rise  g2091076_u0:A2 (NOR2_X4)
+        pin      10.449     358.291  fall  g2091076_u0:ZN (NOR2_X4)
+        pin      75.300     433.591  fall  g2091071_u0:A (INV_X2)
+        pin       4.917     438.508  rise  g2091071_u0:ZN (INV_X2)
+        pin       5.714     444.222  rise  g2091071_u1:A (INV_X4)
+        pin       6.088     450.310  fall  g2091071_u1:ZN (INV_X4)
+        pin     120.187     570.497  fall  g2091070_u0:A (INV_X2)
+        pin       7.917     578.414  rise  g2091070_u0:ZN (INV_X2)
+        pin      27.612     606.026  rise  g2081014_u0:A2 (NOR2_X2)
+        pin       9.901     615.928  fall  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     624.991  fall  g2464199_u0:A (INV_X1)
+        pin       7.589     632.580  rise  g2464199_u0:ZN (INV_X1)
+        pin       6.721     639.301  rise  g2464187_u0:A (INV_X1)
+        pin       7.389     646.690  fall  g2464187_u0:ZN (INV_X1)
+        pin       5.177     651.867  fall  g2464187_u1:A (INV_X2)
+        pin       9.058     660.924  rise  g2464187_u1:ZN (INV_X2)
+        pin     205.689     866.613  rise  g2007921_u0:A2 (NAND2_X1)
+        pin      13.245     879.858  fall  g2007921_u0:ZN (NAND2_X1)
+        pin      21.648     901.506  fall  g1775797_u0:A1 (NAND2_X1)
+        pin       8.434     909.940  rise  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     927.220  rise  g1737992_u0:A1 (NAND2_X1)
+        pin       9.374     936.594  fall  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     958.826  fall  g1664274_u0:A2 (NAND2_X1)
+        pin      11.680     970.506  rise  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162    1002.669  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                1002.669        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint       3.396    7835.687        library hold_rising
+   required                7835.688        data required time
+------------------------------------------------------
+      slack               -6833.020        VIOLATED
+
+Startpoint    : g2466599_u0_b
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  rise  g2466599_u0_b
+        pin       9.629       9.629  rise  g2466599_u0:A2 (NAND2_X1)
+        pin      10.752      20.381  fall  g2466599_u0:ZN (NAND2_X1)
+        pin       8.297      28.678  fall  g2466598_u0:A1 (NAND2_X1)
+        pin       7.894      36.572  rise  g2466598_u0:ZN (NAND2_X1)
+        pin      20.708      57.280  rise  g2466598_u1:A (INV_X1)
+        pin       8.207      65.487  fall  g2466598_u1:ZN (INV_X1)
+        pin      20.533      86.020  fall  g2466590_u0:A3 (NAND3_X2)
+        pin      12.489      98.509  rise  g2466590_u0:ZN (NAND3_X2)
+        pin      26.671     125.180  rise  g2466589_u0:A1 (NAND2_X2)
+        pin       7.164     132.344  fall  g2466589_u0:ZN (NAND2_X2)
+        pin      13.151     145.495  fall  g2466588_u0:A1 (NAND2_X4)
+        pin       5.650     151.145  rise  g2466588_u0:ZN (NAND2_X4)
+        pin      57.267     208.412  rise  g2102120_u0:A1 (NAND2_X2)
+        pin       7.695     216.107  fall  g2102120_u0:ZN (NAND2_X2)
+        pin      12.016     228.123  fall  g2102119_u0:A (INV_X4)
+        pin       4.637     232.759  rise  g2102119_u0:ZN (INV_X4)
+        pin      50.443     283.203  rise  g2102118_u0:A (INV_X1)
+        pin       8.858     292.061  fall  g2102118_u0:ZN (INV_X1)
+        pin      11.637     303.698  fall  g2091076_u0:A2 (NOR2_X4)
+        pin      20.366     324.064  rise  g2091076_u0:ZN (NOR2_X4)
+        pin      75.300     399.364  rise  g2091071_u0:A (INV_X2)
+        pin       6.217     405.581  fall  g2091071_u0:ZN (INV_X2)
+        pin       5.714     411.295  fall  g2091071_u1:A (INV_X4)
+        pin       4.358     415.654  rise  g2091071_u1:ZN (INV_X4)
+        pin     120.187     535.840  rise  g2091070_u0:A (INV_X2)
+        pin       8.055     543.896  fall  g2091070_u0:ZN (INV_X2)
+        pin      27.612     571.508  fall  g2081014_u0:A2 (NOR2_X2)
+        pin      18.938     590.445  rise  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     599.509  rise  g2464199_u0:A (INV_X1)
+        pin       8.423     607.931  fall  g2464199_u0:ZN (INV_X1)
+        pin      18.857     626.788  fall  g2464198_u0:A (INV_X2)
+        pin       8.441     635.230  rise  g2464198_u0:ZN (INV_X2)
+        pin     158.346     793.576  rise  g2464194_u0:A (INV_X1)
+        pin      12.948     806.523  fall  g2464194_u0:ZN (INV_X1)
+        pin      40.903     847.426  fall  g2464192_u0:A (INV_X2)
+        pin       7.998     855.424  rise  g2464192_u0:ZN (INV_X2)
+        pin      27.982     883.406  rise  g1858628_u0:A2 (NAND2_X1)
+        pin      10.846     894.252  fall  g1858628_u0:ZN (NAND2_X1)
+        pin       6.731     900.983  fall  g1775797_u0:A2 (NAND2_X1)
+        pin      10.523     911.506  rise  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     928.786  rise  g1737992_u0:A1 (NAND2_X1)
+        pin       9.374     938.160  fall  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     960.392  fall  g1664274_u0:A2 (NAND2_X1)
+        pin      11.680     972.072  rise  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162    1004.234  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                1004.234        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint       3.396    7835.687        library hold_rising
+   required                7835.688        data required time
+------------------------------------------------------
+      slack               -6831.453        VIOLATED
+
+Startpoint    : g2302873_u0_c
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  fall  g2302873_u0_c
+        pin       7.439       7.439  fall  g2302873_u0:B1 (AOI22_X1)
+        pin      38.577      46.016  rise  g2302873_u0:ZN (AOI22_X1)
+        pin      22.633      68.649  rise  g2268669_u0:A2 (NAND2_X1)
+        pin      17.473      86.122  fall  g2268669_u0:ZN (NAND2_X1)
+        pin      33.038     119.160  fall  g2466186_u0:B1 (AOI22_X1)
+        pin      50.764     169.924  rise  g2466186_u0:ZN (AOI22_X1)
+        pin      36.074     205.998  rise  g2466185_u0:A (INV_X1)
+        pin      11.608     217.605  fall  g2466185_u0:ZN (INV_X1)
+        pin      22.164     239.770  fall  g2466184_u0:A1 (NAND2_X2)
+        pin       9.040     248.809  rise  g2466184_u0:ZN (NAND2_X2)
+        pin      74.356     323.165  rise  g2104141_u0:A (INV_X2)
+        pin       8.657     331.822  fall  g2104141_u0:ZN (INV_X2)
+        pin      88.151     419.973  fall  g2091118_u0:A1 (NAND2_X4)
+        pin       6.869     426.842  rise  g2091118_u0:ZN (NAND2_X4)
+        pin      29.097     455.939  rise  g2091102_u0:A (INV_X4)
+        pin       6.394     462.333  fall  g2091102_u0:ZN (INV_X4)
+        pin     102.477     564.810  fall  g2091100_u0:A (INV_X2)
+        pin       9.227     574.037  rise  g2091100_u0:ZN (INV_X2)
+        pin      37.482     611.518  rise  g2081014_u0:A1 (NOR2_X2)
+        pin       7.843     619.362  fall  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     628.425  fall  g2464199_u0:A (INV_X1)
+        pin       7.589     636.014  rise  g2464199_u0:ZN (INV_X1)
+        pin       6.721     642.735  rise  g2464187_u0:A (INV_X1)
+        pin       7.389     650.124  fall  g2464187_u0:ZN (INV_X1)
+        pin       5.177     655.301  fall  g2464187_u1:A (INV_X2)
+        pin       9.058     664.359  rise  g2464187_u1:ZN (INV_X2)
+        pin     205.689     870.048  rise  g2007921_u0:A2 (NAND2_X1)
+        pin      13.245     883.292  fall  g2007921_u0:ZN (NAND2_X1)
+        pin      21.648     904.940  fall  g1775797_u0:A1 (NAND2_X1)
+        pin       8.434     913.374  rise  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     930.654  rise  g1737992_u0:A1 (NAND2_X1)
+        pin       9.374     940.029  fall  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     962.261  fall  g1664274_u0:A2 (NAND2_X1)
+        pin      11.680     973.941  rise  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162    1006.103  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                1006.103        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint       3.396    7835.687        library hold_rising
+   required                7835.687        data required time
+------------------------------------------------------
+      slack               -6829.584        VIOLATED
+
+Startpoint    : g2466599_u0_b
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  rise  g2466599_u0_b
+        pin       9.629       9.629  rise  g2466599_u0:A2 (NAND2_X1)
+        pin      10.752      20.381  fall  g2466599_u0:ZN (NAND2_X1)
+        pin       8.297      28.678  fall  g2466598_u0:A1 (NAND2_X1)
+        pin       7.894      36.572  rise  g2466598_u0:ZN (NAND2_X1)
+        pin      20.708      57.280  rise  g2466598_u1:A (INV_X1)
+        pin       8.207      65.487  fall  g2466598_u1:ZN (INV_X1)
+        pin      20.533      86.020  fall  g2466590_u0:A3 (NAND3_X2)
+        pin      12.489      98.509  rise  g2466590_u0:ZN (NAND3_X2)
+        pin      26.671     125.180  rise  g2466589_u0:A1 (NAND2_X2)
+        pin       7.164     132.344  fall  g2466589_u0:ZN (NAND2_X2)
+        pin      13.151     145.495  fall  g2466588_u0:A1 (NAND2_X4)
+        pin       5.650     151.145  rise  g2466588_u0:ZN (NAND2_X4)
+        pin      57.267     208.412  rise  g2102120_u0:A1 (NAND2_X2)
+        pin       7.695     216.107  fall  g2102120_u0:ZN (NAND2_X2)
+        pin      12.016     228.123  fall  g2102119_u0:A (INV_X4)
+        pin       4.637     232.759  rise  g2102119_u0:ZN (INV_X4)
+        pin      50.443     283.203  rise  g2102118_u0:A (INV_X1)
+        pin       8.858     292.061  fall  g2102118_u0:ZN (INV_X1)
+        pin      11.637     303.698  fall  g2091076_u0:A2 (NOR2_X4)
+        pin      20.366     324.064  rise  g2091076_u0:ZN (NOR2_X4)
+        pin      75.300     399.364  rise  g2091071_u0:A (INV_X2)
+        pin       6.217     405.581  fall  g2091071_u0:ZN (INV_X2)
+        pin       5.714     411.295  fall  g2091071_u1:A (INV_X4)
+        pin       4.358     415.654  rise  g2091071_u1:ZN (INV_X4)
+        pin     120.187     535.840  rise  g2091070_u0:A (INV_X2)
+        pin       8.055     543.896  fall  g2091070_u0:ZN (INV_X2)
+        pin      27.612     571.508  fall  g2081014_u0:A2 (NOR2_X2)
+        pin      18.938     590.445  rise  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     599.509  rise  g2464199_u0:A (INV_X1)
+        pin       8.423     607.931  fall  g2464199_u0:ZN (INV_X1)
+        pin       6.721     614.652  fall  g2464187_u0:A (INV_X1)
+        pin       6.065     620.718  rise  g2464187_u0:ZN (INV_X1)
+        pin       5.177     625.895  rise  g2464187_u1:A (INV_X2)
+        pin       9.228     635.122  fall  g2464187_u1:ZN (INV_X2)
+        pin     205.689     840.811  fall  g2007921_u0:A2 (NAND2_X1)
+        pin      13.456     854.267  rise  g2007921_u0:ZN (NAND2_X1)
+        pin      21.648     875.915  rise  g1775797_u0:A1 (NAND2_X1)
+        pin       9.335     885.250  fall  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     902.530  fall  g1737992_u0:A1 (NAND2_X1)
+        pin       8.457     910.987  rise  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     933.219  rise  g1664274_u0:A2 (NAND2_X1)
+        pin      12.545     945.763  fall  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162     977.925  fall  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                 977.925        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint     -26.246    7806.045        library hold_rising
+   required                7806.045        data required time
+------------------------------------------------------
+      slack               -6828.120        VIOLATED
+
+Startpoint    : g2466599_u0_b
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  fall  g2466599_u0_b
+        pin       9.629       9.629  fall  g2466599_u0:A2 (NAND2_X1)
+        pin       9.586      19.215  rise  g2466599_u0:ZN (NAND2_X1)
+        pin       8.297      27.512  rise  g2466598_u0:A1 (NAND2_X1)
+        pin       8.908      36.420  fall  g2466598_u0:ZN (NAND2_X1)
+        pin      20.708      57.128  fall  g2466598_u1:A (INV_X1)
+        pin       7.365      64.493  rise  g2466598_u1:ZN (INV_X1)
+        pin      20.533      85.025  rise  g2466590_u0:A3 (NAND3_X2)
+        pin      17.420     102.445  fall  g2466590_u0:ZN (NAND3_X2)
+        pin      26.671     129.116  fall  g2466589_u0:A1 (NAND2_X2)
+        pin       6.245     135.361  rise  g2466589_u0:ZN (NAND2_X2)
+        pin      13.151     148.512  rise  g2466588_u0:A1 (NAND2_X4)
+        pin       6.589     155.101  fall  g2466588_u0:ZN (NAND2_X4)
+        pin      57.267     212.368  fall  g2102120_u0:A1 (NAND2_X2)
+        pin       7.017     219.386  rise  g2102120_u0:ZN (NAND2_X2)
+        pin      12.016     231.401  rise  g2102119_u0:A (INV_X4)
+        pin       6.244     237.646  fall  g2102119_u0:ZN (INV_X4)
+        pin      50.443     288.089  fall  g2102118_u0:A (INV_X1)
+        pin       8.848     296.937  rise  g2102118_u0:ZN (INV_X1)
+        pin      11.637     308.574  rise  g2091076_u0:A2 (NOR2_X4)
+        pin      10.449     319.023  fall  g2091076_u0:ZN (NOR2_X4)
+        pin      75.300     394.323  fall  g2091071_u0:A (INV_X2)
+        pin       4.917     399.240  rise  g2091071_u0:ZN (INV_X2)
+        pin       5.714     404.954  rise  g2091071_u1:A (INV_X4)
+        pin       6.088     411.042  fall  g2091071_u1:ZN (INV_X4)
+        pin     120.187     531.229  fall  g2091070_u0:A (INV_X2)
+        pin       7.917     539.146  rise  g2091070_u0:ZN (INV_X2)
+        pin      27.612     566.758  rise  g2081014_u0:A2 (NOR2_X2)
+        pin       9.901     576.659  fall  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     585.723  fall  g2464199_u0:A (INV_X1)
+        pin       7.589     593.311  rise  g2464199_u0:ZN (INV_X1)
+        pin      18.857     612.168  rise  g2464198_u0:A (INV_X2)
+        pin       8.767     620.936  fall  g2464198_u0:ZN (INV_X2)
+        pin     158.346     779.281  fall  g2464194_u0:A (INV_X1)
+        pin      15.212     794.493  rise  g2464194_u0:ZN (INV_X1)
+        pin      40.903     835.396  rise  g2464192_u0:A (INV_X2)
+        pin       8.402     843.798  fall  g2464192_u0:ZN (INV_X2)
+        pin      27.982     871.780  fall  g1858628_u0:A2 (NAND2_X1)
+        pin       9.946     881.726  rise  g1858628_u0:ZN (NAND2_X1)
+        pin       6.731     888.458  rise  g1775797_u0:A2 (NAND2_X1)
+        pin      11.611     900.069  fall  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     917.349  fall  g1737992_u0:A1 (NAND2_X1)
+        pin       8.457     925.806  rise  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     948.038  rise  g1664274_u0:A2 (NAND2_X1)
+        pin      12.545     960.582  fall  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162     992.745  fall  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                 992.745        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint     -26.246    7806.045        library hold_rising
+   required                7806.046        data required time
+------------------------------------------------------
+      slack               -6813.301        VIOLATED
+
+Startpoint    : e0_oc_ethreg1_irq_txe_reg_u0:CK
+Endpoint      : pci_irq
+Analysis type : max
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+        pin    6416.715    6416.715  rise  e0_oc_ethreg1_irq_txe_reg_u0:CK (DFF_X2)
+        pin     126.866    6543.581  rise  e0_oc_ethreg1_irq_txe_reg_u0:Q (DFF_X2)
+        pin      17.396    6560.977  rise  e0_oc_ethreg1_irq_txe_reg_u1:A (INV_X1)
+        pin       9.688    6570.665  fall  e0_oc_ethreg1_irq_txe_reg_u1:ZN (INV_X1)
+        pin      33.327    6603.992  fall  g2355379_u0:A (INV_X1)
+        pin       8.957    6612.948  rise  g2355379_u0:ZN (INV_X1)
+        pin      17.792    6630.741  rise  g2309417_u0:B2 (AOI22_X1)
+        pin      22.237    6652.978  fall  g2309417_u0:ZN (AOI22_X1)
+        pin      16.590    6669.567  fall  g2299501_u0:A2 (NAND3_X1)
+        pin      12.821    6682.388  rise  g2299501_u0:ZN (NAND3_X1)
+        pin      18.246    6700.634  rise  g2289603_u0:A (AOI21_X1)
+        pin      18.040    6718.673  fall  g2289603_u0:ZN (AOI21_X1)
+        pin      27.757    6746.431  fall  irq_pad_pad_tri_u0:A2 (NAND2_X1)
+        pin      10.833    6757.264  rise  irq_pad_pad_tri_u0:ZN (NAND2_X1)
+        pin      10.361    6767.625  rise  irq_pad_pad_tri_u1:A (INV_X1)
+        pin       9.146    6776.771  fall  irq_pad_pad_tri_u1:ZN (INV_X1)
+       port      19.701    6796.473  fall  pci_irq
+    arrival                6796.473        data arrival time
+
+       port       0.000       0.000        output port delay
+   required                   0.000        data required time
+------------------------------------------------------
+      slack               -6796.472        VIOLATED
+
+Startpoint    : g2302851_u0_a
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  fall  g2302851_u0_a
+        pin      22.516      22.516  fall  g2302851_u0:A1 (AOI22_X1)
+        pin      28.064      50.580  rise  g2302851_u0:ZN (AOI22_X1)
+        pin      23.711      74.291  rise  g2275560_u0:A2 (NAND2_X1)
+        pin      12.085      86.376  fall  g2275560_u0:ZN (NAND2_X1)
+        pin      17.120     103.496  fall  g2275560_u1:A (INV_X1)
+        pin      10.343     113.839  rise  g2275560_u1:ZN (INV_X1)
+        pin      31.932     145.771  rise  g2172902_u0:A1 (OAI22_X2)
+        pin      15.641     161.412  fall  g2172902_u0:ZN (OAI22_X2)
+        pin      44.041     205.453  fall  g2104139_u0:A1 (NOR2_X4)
+        pin      13.372     218.825  rise  g2104139_u0:ZN (NOR2_X4)
+        pin      38.345     257.170  rise  g2102120_u0:A2 (NAND2_X2)
+        pin       9.966     267.136  fall  g2102120_u0:ZN (NAND2_X2)
+        pin      12.016     279.152  fall  g2102119_u0:A (INV_X4)
+        pin       4.637     283.789  rise  g2102119_u0:ZN (INV_X4)
+        pin      50.443     334.232  rise  g2102118_u0:A (INV_X1)
+        pin       8.858     343.090  fall  g2102118_u0:ZN (INV_X1)
+        pin      11.637     354.727  fall  g2091076_u0:A2 (NOR2_X4)
+        pin      20.366     375.093  rise  g2091076_u0:ZN (NOR2_X4)
+        pin      75.300     450.393  rise  g2091071_u0:A (INV_X2)
+        pin       6.217     456.610  fall  g2091071_u0:ZN (INV_X2)
+        pin       5.714     462.324  fall  g2091071_u1:A (INV_X4)
+        pin       4.358     466.683  rise  g2091071_u1:ZN (INV_X4)
+        pin     120.187     586.870  rise  g2091070_u0:A (INV_X2)
+        pin       8.055     594.925  fall  g2091070_u0:ZN (INV_X2)
+        pin      27.612     622.537  fall  g2081014_u0:A2 (NOR2_X2)
+        pin      18.938     641.475  rise  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     650.538  rise  g2464199_u0:A (INV_X1)
+        pin       8.423     658.961  fall  g2464199_u0:ZN (INV_X1)
+        pin      18.857     677.818  fall  g2464198_u0:A (INV_X2)
+        pin       8.441     686.259  rise  g2464198_u0:ZN (INV_X2)
+        pin     158.346     844.605  rise  g2464194_u0:A (INV_X1)
+        pin      12.948     857.552  fall  g2464194_u0:ZN (INV_X1)
+        pin      40.903     898.455  fall  g2464192_u0:A (INV_X2)
+        pin       7.998     906.453  rise  g2464192_u0:ZN (INV_X2)
+        pin      27.982     934.435  rise  g1858628_u0:A2 (NAND2_X1)
+        pin      10.846     945.281  fall  g1858628_u0:ZN (NAND2_X1)
+        pin       6.731     952.012  fall  g1775797_u0:A2 (NAND2_X1)
+        pin      10.523     962.535  rise  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     979.815  rise  g1737992_u0:A1 (NAND2_X1)
+        pin       9.374     989.189  fall  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232    1011.421  fall  g1664274_u0:A2 (NAND2_X1)
+        pin      11.680    1023.101  rise  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162    1055.263  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                1055.263        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint       3.396    7835.687        library hold_rising
+   required                7835.688        data required time
+------------------------------------------------------
+      slack               -6780.424        VIOLATED
+
+Startpoint    : g2302851_u0_a
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  fall  g2302851_u0_a
+        pin      22.516      22.516  fall  g2302851_u0:A1 (AOI22_X1)
+        pin      28.064      50.580  rise  g2302851_u0:ZN (AOI22_X1)
+        pin      23.711      74.291  rise  g2275560_u0:A2 (NAND2_X1)
+        pin      12.085      86.376  fall  g2275560_u0:ZN (NAND2_X1)
+        pin      17.120     103.496  fall  g2275560_u1:A (INV_X1)
+        pin      10.343     113.839  rise  g2275560_u1:ZN (INV_X1)
+        pin      31.932     145.771  rise  g2172902_u0:A1 (OAI22_X2)
+        pin      15.641     161.412  fall  g2172902_u0:ZN (OAI22_X2)
+        pin      44.041     205.453  fall  g2104139_u0:A1 (NOR2_X4)
+        pin      13.372     218.825  rise  g2104139_u0:ZN (NOR2_X4)
+        pin      38.345     257.170  rise  g2102120_u0:A2 (NAND2_X2)
+        pin       9.966     267.136  fall  g2102120_u0:ZN (NAND2_X2)
+        pin      12.016     279.152  fall  g2102119_u0:A (INV_X4)
+        pin       4.637     283.789  rise  g2102119_u0:ZN (INV_X4)
+        pin      50.443     334.232  rise  g2102118_u0:A (INV_X1)
+        pin       8.858     343.090  fall  g2102118_u0:ZN (INV_X1)
+        pin      11.637     354.727  fall  g2091076_u0:A2 (NOR2_X4)
+        pin      20.366     375.093  rise  g2091076_u0:ZN (NOR2_X4)
+        pin      75.300     450.393  rise  g2091071_u0:A (INV_X2)
+        pin       6.217     456.610  fall  g2091071_u0:ZN (INV_X2)
+        pin       5.714     462.324  fall  g2091071_u1:A (INV_X4)
+        pin       4.358     466.683  rise  g2091071_u1:ZN (INV_X4)
+        pin     120.187     586.870  rise  g2091070_u0:A (INV_X2)
+        pin       8.055     594.925  fall  g2091070_u0:ZN (INV_X2)
+        pin      27.612     622.537  fall  g2081014_u0:A2 (NOR2_X2)
+        pin      18.938     641.475  rise  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     650.538  rise  g2464199_u0:A (INV_X1)
+        pin       8.423     658.961  fall  g2464199_u0:ZN (INV_X1)
+        pin       6.721     665.682  fall  g2464187_u0:A (INV_X1)
+        pin       6.065     671.747  rise  g2464187_u0:ZN (INV_X1)
+        pin       5.177     676.924  rise  g2464187_u1:A (INV_X2)
+        pin       9.228     686.151  fall  g2464187_u1:ZN (INV_X2)
+        pin     205.689     891.840  fall  g2007921_u0:A2 (NAND2_X1)
+        pin      13.456     905.296  rise  g2007921_u0:ZN (NAND2_X1)
+        pin      21.648     926.944  rise  g1775797_u0:A1 (NAND2_X1)
+        pin       9.335     936.279  fall  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     953.559  fall  g1737992_u0:A1 (NAND2_X1)
+        pin       8.457     962.016  rise  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     984.248  rise  g1664274_u0:A2 (NAND2_X1)
+        pin      12.545     996.793  fall  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162    1028.955  fall  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                1028.955        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint     -26.246    7806.045        library hold_rising
+   required                7806.045        data required time
+------------------------------------------------------
+      slack               -6777.090        VIOLATED
+
+Startpoint    : g2302851_u0_a
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  rise  g2302851_u0_a
+        pin      22.516      22.516  rise  g2302851_u0:A1 (AOI22_X1)
+        pin      17.757      40.273  fall  g2302851_u0:ZN (AOI22_X1)
+        pin      23.711      63.984  fall  g2275560_u0:A2 (NAND2_X1)
+        pin      11.119      75.103  rise  g2275560_u0:ZN (NAND2_X1)
+        pin      17.120      92.223  rise  g2275560_u1:A (INV_X1)
+        pin      10.176     102.399  fall  g2275560_u1:ZN (INV_X1)
+        pin      31.932     134.331  fall  g2172902_u0:A1 (OAI22_X2)
+        pin      25.019     159.351  rise  g2172902_u0:ZN (OAI22_X2)
+        pin      44.041     203.391  rise  g2104139_u0:A1 (NOR2_X4)
+        pin       7.871     211.262  fall  g2104139_u0:ZN (NOR2_X4)
+        pin      38.345     249.607  fall  g2102120_u0:A2 (NAND2_X2)
+        pin       9.047     258.654  rise  g2102120_u0:ZN (NAND2_X2)
+        pin      12.016     270.670  rise  g2102119_u0:A (INV_X4)
+        pin       6.244     276.914  fall  g2102119_u0:ZN (INV_X4)
+        pin      50.443     327.357  fall  g2102118_u0:A (INV_X1)
+        pin       8.848     336.205  rise  g2102118_u0:ZN (INV_X1)
+        pin      11.637     347.842  rise  g2091076_u0:A2 (NOR2_X4)
+        pin      10.449     358.291  fall  g2091076_u0:ZN (NOR2_X4)
+        pin      75.300     433.591  fall  g2091071_u0:A (INV_X2)
+        pin       4.917     438.508  rise  g2091071_u0:ZN (INV_X2)
+        pin       5.714     444.222  rise  g2091071_u1:A (INV_X4)
+        pin       6.088     450.310  fall  g2091071_u1:ZN (INV_X4)
+        pin     120.187     570.497  fall  g2091070_u0:A (INV_X2)
+        pin       7.917     578.414  rise  g2091070_u0:ZN (INV_X2)
+        pin      27.612     606.026  rise  g2081014_u0:A2 (NOR2_X2)
+        pin       9.901     615.928  fall  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     624.991  fall  g2464199_u0:A (INV_X1)
+        pin       7.589     632.580  rise  g2464199_u0:ZN (INV_X1)
+        pin      18.857     651.437  rise  g2464198_u0:A (INV_X2)
+        pin       8.767     660.204  fall  g2464198_u0:ZN (INV_X2)
+        pin     158.346     818.550  fall  g2464194_u0:A (INV_X1)
+        pin      15.212     833.761  rise  g2464194_u0:ZN (INV_X1)
+        pin      40.903     874.664  rise  g2464192_u0:A (INV_X2)
+        pin       8.402     883.066  fall  g2464192_u0:ZN (INV_X2)
+        pin      27.982     911.048  fall  g1858628_u0:A2 (NAND2_X1)
+        pin       9.946     920.995  rise  g1858628_u0:ZN (NAND2_X1)
+        pin       6.731     927.726  rise  g1775797_u0:A2 (NAND2_X1)
+        pin      11.611     939.337  fall  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     956.617  fall  g1737992_u0:A1 (NAND2_X1)
+        pin       8.457     965.074  rise  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     987.306  rise  g1664274_u0:A2 (NAND2_X1)
+        pin      12.545     999.851  fall  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162    1032.013  fall  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                1032.013        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint     -26.246    7806.045        library hold_rising
+   required                7806.046        data required time
+------------------------------------------------------
+      slack               -6774.033        VIOLATED
+
+Startpoint    : g2302873_u0_c
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  fall  g2302873_u0_c
+        pin       7.439       7.439  fall  g2302873_u0:B1 (AOI22_X1)
+        pin      38.577      46.016  rise  g2302873_u0:ZN (AOI22_X1)
+        pin      22.633      68.649  rise  g2268669_u0:A2 (NAND2_X1)
+        pin      17.473      86.122  fall  g2268669_u0:ZN (NAND2_X1)
+        pin      33.038     119.160  fall  g2466186_u0:B1 (AOI22_X1)
+        pin      50.764     169.924  rise  g2466186_u0:ZN (AOI22_X1)
+        pin      36.074     205.998  rise  g2466185_u0:A (INV_X1)
+        pin      11.608     217.605  fall  g2466185_u0:ZN (INV_X1)
+        pin      22.164     239.770  fall  g2466184_u0:A1 (NAND2_X2)
+        pin       9.040     248.809  rise  g2466184_u0:ZN (NAND2_X2)
+        pin      74.356     323.165  rise  g2104141_u0:A (INV_X2)
+        pin       8.657     331.822  fall  g2104141_u0:ZN (INV_X2)
+        pin      88.151     419.973  fall  g2091118_u0:A1 (NAND2_X4)
+        pin       6.869     426.842  rise  g2091118_u0:ZN (NAND2_X4)
+        pin      29.097     455.939  rise  g2091102_u0:A (INV_X4)
+        pin       6.394     462.333  fall  g2091102_u0:ZN (INV_X4)
+        pin     102.477     564.810  fall  g2091100_u0:A (INV_X2)
+        pin       9.227     574.037  rise  g2091100_u0:ZN (INV_X2)
+        pin      37.482     611.518  rise  g2081014_u0:A1 (NOR2_X2)
+        pin       7.843     619.362  fall  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     628.425  fall  g2464199_u0:A (INV_X1)
+        pin       7.589     636.014  rise  g2464199_u0:ZN (INV_X1)
+        pin      18.857     654.871  rise  g2464198_u0:A (INV_X2)
+        pin       8.767     663.638  fall  g2464198_u0:ZN (INV_X2)
+        pin     158.346     821.984  fall  g2464194_u0:A (INV_X1)
+        pin      15.212     837.196  rise  g2464194_u0:ZN (INV_X1)
+        pin      40.903     878.098  rise  g2464192_u0:A (INV_X2)
+        pin       8.402     886.501  fall  g2464192_u0:ZN (INV_X2)
+        pin      27.982     914.483  fall  g1858628_u0:A2 (NAND2_X1)
+        pin       9.946     924.429  rise  g1858628_u0:ZN (NAND2_X1)
+        pin       6.731     931.160  rise  g1775797_u0:A2 (NAND2_X1)
+        pin      11.611     942.771  fall  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280     960.051  fall  g1737992_u0:A1 (NAND2_X1)
+        pin       8.457     968.508  rise  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232     990.740  rise  g1664274_u0:A2 (NAND2_X1)
+        pin      12.545    1003.285  fall  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162    1035.447  fall  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                1035.447        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint     -26.246    7806.045        library hold_rising
+   required                7806.045        data required time
+------------------------------------------------------
+      slack               -6770.598        VIOLATED
+
+Startpoint    : g2303066_u0_c
+Endpoint      : ram0_aram_0_u0_memarr_reg_1238__6__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  rise  g2303066_u0_c
+        pin       0.506       0.506  rise  g2303066_u0:B1 (AOI22_X1)
+        pin      27.685      28.192  fall  g2303066_u0:ZN (AOI22_X1)
+        pin      75.894     104.085  fall  g2467144_u0:A3 (NAND3_X2)
+        pin      16.317     120.402  rise  g2467144_u0:ZN (NAND3_X2)
+        pin      84.861     205.263  rise  g2467141_u0:A2 (NOR2_X2)
+        pin      10.397     215.660  fall  g2467141_u0:ZN (NOR2_X2)
+        pin      11.503     227.163  fall  g2467141_u1:A (INV_X1)
+        pin       6.178     233.341  rise  g2467141_u1:ZN (INV_X1)
+        pin      19.970     253.310  rise  g2467140_u0:A1 (NAND2_X2)
+        pin       6.311     259.622  fall  g2467140_u0:ZN (NAND2_X2)
+        pin       7.447     267.068  fall  g2467138_u0:A2 (NAND2_X2)
+        pin       8.501     275.569  rise  g2467138_u0:ZN (NAND2_X2)
+        pin      38.098     313.667  rise  g2463675_u0:A (INV_X4)
+        pin       6.474     320.141  fall  g2463675_u0:ZN (INV_X4)
+        pin      42.789     362.930  fall  g2463674_u0:A (INV_X2)
+        pin       7.843     370.773  rise  g2463674_u0:ZN (INV_X2)
+        pin      67.626     438.399  rise  g2091076_u0:A1 (NOR2_X4)
+        pin       8.519     446.918  fall  g2091076_u0:ZN (NOR2_X4)
+        pin      75.300     522.219  fall  g2091071_u0:A (INV_X2)
+        pin       4.917     527.135  rise  g2091071_u0:ZN (INV_X2)
+        pin       5.714     532.849  rise  g2091071_u1:A (INV_X4)
+        pin       6.088     538.937  fall  g2091071_u1:ZN (INV_X4)
+        pin     120.187     659.124  fall  g2091070_u0:A (INV_X2)
+        pin       7.917     667.042  rise  g2091070_u0:ZN (INV_X2)
+        pin      27.612     694.654  rise  g2081014_u0:A2 (NOR2_X2)
+        pin       9.901     704.555  fall  g2081014_u0:ZN (NOR2_X2)
+        pin       9.063     713.618  fall  g2464199_u0:A (INV_X1)
+        pin       7.589     721.207  rise  g2464199_u0:ZN (INV_X1)
+        pin       6.721     727.928  rise  g2464187_u0:A (INV_X1)
+        pin       7.389     735.317  fall  g2464187_u0:ZN (INV_X1)
+        pin       5.177     740.494  fall  g2464187_u1:A (INV_X2)
+        pin       9.058     749.552  rise  g2464187_u1:ZN (INV_X2)
+        pin     205.689     955.241  rise  g2007921_u0:A2 (NAND2_X1)
+        pin      13.245     968.485  fall  g2007921_u0:ZN (NAND2_X1)
+        pin      21.648     990.133  fall  g1775797_u0:A1 (NAND2_X1)
+        pin       8.434     998.567  rise  g1775797_u0:ZN (NAND2_X1)
+        pin      17.280    1015.847  rise  g1737992_u0:A1 (NAND2_X1)
+        pin       9.374    1025.221  fall  g1737992_u0:ZN (NAND2_X1)
+        pin      22.232    1047.454  fall  g1664274_u0:A2 (NAND2_X1)
+        pin      11.680    1059.134  rise  g1664274_u0:ZN (NAND2_X1)
+        pin      32.162    1091.296  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:D (DFF_X2)
+    arrival                1091.296        data arrival time
+
+related pin    7832.291    7832.291  rise  ram0_aram_0_u0_memarr_reg_1238__6__u0:CK (DFF_X2)
+ constraint       3.396    7835.687        library hold_rising
+   required                7835.688        data required time
+------------------------------------------------------
+      slack               -6744.392        VIOLATED
+
+Startpoint    : g2466211_u0_b
+Endpoint      : ram0_aram_0_u0_memarr_reg_635__0__u0:D
+Analysis type : min
+------------------------------------------------------
+       Type       Delay        Time   Dir  Description
+------------------------------------------------------
+       port       0.000       0.000  rise  g2466211_u0_b
+        pin      11.632      11.632  rise  g2466211_u0:A2 (NAND2_X1)
+        pin      12.774      24.406  fall  g2466211_u0:ZN (NAND2_X1)
+        pin       9.052      33.458  fall  g2466210_u0:A1 (NAND2_X1)
+        pin       7.636      41.094  rise  g2466210_u0:ZN (NAND2_X1)
+        pin      11.557      52.651  rise  g2466210_u1:A (INV_X1)
+        pin       7.794      60.445  fall  g2466210_u1:ZN (INV_X1)
+        pin      13.129      73.574  fall  g2466209_u0:A2 (NAND2_X2)
+        pin       7.510      81.084  rise  g2466209_u0:ZN (NAND2_X2)
+        pin       5.043      86.127  rise  g2467521_u0:B2 (OAI21_X2)
+        pin      17.101     103.228  fall  g2467521_u0:ZN (OAI21_X2)
+        pin      23.503     126.731  fall  g2467520_u0:A (INV_X4)
+        pin       4.532     131.264  rise  g2467520_u0:ZN (INV_X4)
+        pin      34.753     166.017  rise  g2102087_u0:A1 (NAND2_X2)
+        pin       8.247     174.264  fall  g2102087_u0:ZN (NAND2_X2)
+        pin      40.171     214.435  fall  g2102086_u0:A (INV_X4)
+        pin       4.730     219.165  rise  g2102086_u0:ZN (INV_X4)
+        pin      97.563     316.728  rise  g2091056_u0:A1 (NAND2_X2)
+        pin       8.083     324.811  fall  g2091056_u0:ZN (NAND2_X2)
+        pin      14.121     338.931  fall  g2091046_u0:A (INV_X4)
+        pin       4.125     343.057  rise  g2091046_u0:ZN (INV_X4)
+        pin      58.586     401.642  rise  g2091048_u0:A (INV_X2)
+        pin       9.209     410.851  fall  g2091048_u0:ZN (INV_X2)
+        pin     201.254     612.105  fall  g2079765_u0:A2 (NOR2_X1)
+        pin      40.201     652.306  rise  g2079765_u0:ZN (NOR2_X1)
+        pin      40.436     692.742  rise  g2079755_u0:A (INV_X1)
+        pin       8.222     700.965  fall  g2079755_u0:ZN (INV_X1)
+        pin      25.138     726.103  fall  g2079755_u1:A (INV_X1)
+        pin      16.762     742.865  rise  g2079755_u1:ZN (INV_X1)
+        pin      31.685     774.549  rise  g1878683_u0:A2 (NAND2_X1)
+        pin      12.840     787.390  fall  g1878683_u0:ZN (NAND2_X1)
+        pin      26.049     813.439  fall  g1781387_u0:A2 (NAND2_X1)
+        pin       9.352     822.791  rise  g1781387_u0:ZN (NAND2_X1)
+        pin       6.044     828.836  rise  g1743498_u0:A1 (NAND2_X1)
+        pin       7.754     836.589  fall  g1743498_u0:ZN (NAND2_X1)
+        pin       2.155     838.744  fall  g1675292_u0:A2 (NAND2_X1)
+        pin       8.856     847.600  rise  g1675292_u0:ZN (NAND2_X1)
+        pin       4.917     852.517  rise  ram0_aram_0_u0_memarr_reg_635__0__u0:D (DFF_X2)
+    arrival                 852.517        data arrival time
+
+related pin    7578.539    7578.539  rise  ram0_aram_0_u0_memarr_reg_635__0__u0:CK (DFF_X2)
+ constraint       2.912    7581.450        library hold_rising
+   required                7581.451        data required time
+------------------------------------------------------
+      slack               -6728.934        VIOLATED
