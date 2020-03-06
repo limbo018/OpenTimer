@@ -7,7 +7,7 @@
 //const MAX_SPLIT_TRAN = 4;
 const int chunk = 64;
 
-__global__ static void compute_net_timing(RctCUDA rct) {
+__global__ void compute_net_timing(RctCUDA rct) {
   unsigned int net_id = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int el_rf_offset = threadIdx.y;
   if(net_id >= rct.num_nets) return;
@@ -56,7 +56,7 @@ __global__ static void compute_net_timing(RctCUDA rct) {
   }
 }
 
-static RctCUDA copy_cpu_to_gpu(const RctCUDA data_cpu) {
+RctCUDA copy_cpu_to_gpu(const RctCUDA data_cpu) {
   RctCUDA data_gpu;
   data_gpu.num_nets = data_cpu.num_nets;
   data_gpu.total_num_nodes = data_cpu.total_num_nodes;
@@ -75,7 +75,7 @@ static RctCUDA copy_cpu_to_gpu(const RctCUDA data_cpu) {
   return data_gpu;
 }
 
-static void copy_gpu_to_cpu(const RctCUDA data_gpu, RctCUDA data_cpu) {
+void copy_gpu_to_cpu(const RctCUDA data_gpu, RctCUDA data_cpu) {
 #define COPY_RESULTS(arr) memcpyDeviceHostCUDA(data_cpu.arr, data_gpu.arr, data_gpu.total_num_nodes * 4)
   COPY_RESULTS(load);
   COPY_RESULTS(delay);
@@ -84,7 +84,7 @@ static void copy_gpu_to_cpu(const RctCUDA data_gpu, RctCUDA data_cpu) {
 #undef COPY_RESULTS
 }
 
-static void free_gpu(RctCUDA data_gpu) {
+void free_gpu(RctCUDA data_gpu) {
 #define FREEG(arr) checkCUDA(cudaFree(data_gpu.arr))
   FREEG(arr_starts);
   FREEG(pid);
@@ -97,7 +97,6 @@ static void free_gpu(RctCUDA data_gpu) {
 #undef FREEG
 }
 
-extern "C"
 void rct_compute_cuda(RctCUDA data_cpu) {
   printf("entered rct_compute_cuda();\n");
   _prof::setup_timer("rct_compute_cuda__copy_c2g");
@@ -114,4 +113,116 @@ void rct_compute_cuda(RctCUDA data_cpu) {
   checkCUDA(cudaDeviceSynchronize());
   free_gpu(data_gpu);
   _prof::stop_timer("rct_compute_cuda__copy_g2c");
+}
+
+__global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
+    // one block may process multiple nets 
+    int net_id = blockIdx.x; 
+    int tid = threadIdx.x; 
+    __shared__ int edges_offset; 
+    __shared__ int nodes_offset; 
+    __shared__ int num_edges; 
+    __shared__ int num_nodes; 
+    __shared__ RctEdgeCUDA* edges; 
+    //__shared__ int* parents; 
+    __shared__ int* distances; 
+    __shared__ int root; 
+    __shared__ int level; 
+    __shared__ int change_flag; 
+
+    if (net_id < data_gpu.num_nets) {
+
+        if (tid == 0) {
+            edges_offset = data_gpu.rct_edges_start[net_id]; 
+            nodes_offset = data_gpu.rct_nodes_start[net_id]; 
+            num_edges = data_gpu.rct_edges_start[net_id + 1] - edges_offset; 
+            num_nodes = data_gpu.rct_nodes_start[net_id + 1] - nodes_offset; 
+            edges = data_gpu.rct_edges + edges_offset; 
+            //parents = data_gpu.rct_parents + nodes_offset; 
+            distances = data_gpu.rct_distances + nodes_offset; 
+            root = data_gpu.rct_roots[net_id]; 
+            level = 0; 
+            change_flag = true; 
+        }
+        __syncthreads();
+
+        // initialize distance by traversing nodes, using all blockDim.x threads 
+        for (int u = tid; u < num_nodes; u += blockDim.x) {
+            int& du = distances[u]; 
+            // initialize 
+            du = (u == root)? 0 : INT_MAX; 
+        }
+        __syncthreads(); 
+
+        while (change_flag) {
+            if (tid == 0) {
+                change_flag = false; 
+            }
+            __syncthreads(); 
+            // traverse edges, using all blockDim.x threads  
+            for (int e = tid; e < num_edges; e += blockDim.x) {
+                RctEdgeCUDA& edge = edges[e]; 
+                int& ds = distances[edge.s]; 
+                if (ds == level) {
+                    int& dt = distances[edge.t]; 
+                    if (level + 1 < dt) {
+                        dt = level + 1; 
+                        //parents[edge.t] = edge.s; 
+                        atomicExch(&change_flag, true); 
+                    }
+                }
+            }
+            if (tid == 0) {
+                level += 1; 
+            }
+            __syncthreads(); 
+        }
+    }
+}
+
+RctEdgeArrayCUDA copy_cpu_to_gpu(const RctEdgeArrayCUDA data_cpu) {
+  RctEdgeArrayCUDA data_gpu;
+  data_gpu.num_nets = data_cpu.num_nets;
+  data_gpu.total_num_nodes = data_cpu.total_num_nodes; 
+  data_gpu.total_num_edges = data_cpu.total_num_edges;
+#define COPY_DATA(arr, sz) allocateCopyCUDA(data_gpu.arr, data_cpu.arr, sz)
+  COPY_DATA(rct_edges, data_cpu.total_num_nodes);
+  COPY_DATA(rct_edges_start, data_cpu.num_nets + 1);
+  COPY_DATA(rct_roots, data_cpu.num_nets + 1);
+  COPY_DATA(rct_nodes_start, data_cpu.num_nets + 1);
+#undef COPY_DATA
+#define MALLOC_RESULTS(arr) allocateCUDA(data_gpu.arr, data_cpu.total_num_nodes, int)
+  //MALLOC_RESULTS(rct_parents);
+  MALLOC_RESULTS(rct_distances);
+#undef MALLOC_RESULTS
+  return data_gpu;
+}
+
+void copy_gpu_to_cpu(const RctEdgeArrayCUDA data_gpu, RctEdgeArrayCUDA data_cpu) {
+#define COPY_RESULTS(arr) memcpyDeviceHostCUDA(data_cpu.arr, data_gpu.arr, data_gpu.total_num_nodes)
+  COPY_RESULTS(rct_distances);
+#undef COPY_RESULTS
+}
+
+void free_gpu(RctEdgeArrayCUDA data_gpu) {
+#define FREEG(arr) checkCUDA(cudaFree(data_gpu.arr))
+  FREEG(rct_edges);
+  FREEG(rct_edges_start);
+  FREEG(rct_roots);
+  //FREEG(rct_parents);
+  FREEG(rct_distances);
+  FREEG(rct_nodes_start);
+#undef FREEG
+}
+
+void rct_bfs_cuda(RctEdgeArrayCUDA data_cpu) {
+  RctEdgeArrayCUDA data_gpu = copy_cpu_to_gpu(data_cpu); 
+  checkCUDA(cudaDeviceSynchronize());
+  // the threads for one net 
+  int threads = 256; 
+  compute_net_bfs<<<(data_gpu.num_nets + threads - 1) / threads, threads>>>(data_gpu); 
+  checkCUDA(cudaDeviceSynchronize());
+  copy_gpu_to_cpu(data_gpu, data_cpu); 
+  checkCUDA(cudaDeviceSynchronize());
+  free_gpu(data_gpu); 
 }
