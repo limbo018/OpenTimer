@@ -2,7 +2,6 @@
 benchmark/ 
 bin/ 
 build/ 
-cuda/ 
 example/ 
 rctree-gpu-origin/ 
 unittest/ 
