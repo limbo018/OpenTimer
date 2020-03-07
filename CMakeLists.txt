@@ -181,6 +181,7 @@ set(OT_CUDA
   ot/cuda/rct.cu
 )
 
+cuda_include_directories(OpenTimerCUDA ${CMAKE_CURRENT_SOURCE_DIR}/ot/cuda/cub)
 cuda_add_library(OpenTimerCUDA STATIC ${OT_CUDA})
 
 

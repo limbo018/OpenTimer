@@ -930,17 +930,17 @@ void Timer::_build_rc_timing_tasks() {
     _flat_rct_stor.emplace();
     auto &stor = *_flat_rct_stor;
     
-    stor.arr_starts.reserve(_nets.size());
+    stor.rct_nodes_start.reserve(_nets.size() + 1);
     
     int total_num_nodes = 0;
     for(auto &p : _nets) {
       size_t sz = p.second._init_flat_rct(&stor, total_num_nodes);
       if(!sz) continue;
 
-      stor.arr_starts.push_back(total_num_nodes);
+      stor.rct_nodes_start.push_back(total_num_nodes);
       total_num_nodes += sz;
     }
-    stor.arr_starts.push_back(total_num_nodes);
+    stor.rct_nodes_start.push_back(total_num_nodes);
     stor.total_num_nodes = total_num_nodes;
     stor.pid.resize(total_num_nodes);
     stor.pres.resize(total_num_nodes);

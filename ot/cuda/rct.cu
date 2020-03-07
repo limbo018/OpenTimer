@@ -1,6 +1,7 @@
 // File rct.cu
 
 #include <ot/cuda/rct.cuh>
+#include <ot/cuda/sort.cuh>
 #include <ot/cuda/utils.cuh>
 #include <ot/timer/_prof.hpp>
 
@@ -12,7 +13,7 @@ __global__ void compute_net_timing(RctCUDA rct) {
   unsigned int el_rf_offset = threadIdx.y;
   if(net_id >= rct.num_nets) return;
   
-  int st = rct.arr_starts[net_id], ed = rct.arr_starts[net_id + 1];
+  int st = rct.rct_nodes_start[net_id], ed = rct.rct_nodes_start[net_id + 1];
   int st4 = st * 4 + el_rf_offset, ed4 = ed * 4 + el_rf_offset;
   int rst4 = ed4 - 4, red4 = st4;   // red4 = st4, jumping over the root
 
@@ -64,7 +65,7 @@ RctCUDA copy_cpu_to_gpu(const RctCUDA data_cpu) {
   COPY_DATA(pid, data_cpu.total_num_nodes);
   COPY_DATA(pres, data_cpu.total_num_nodes);
   COPY_DATA(cap, data_cpu.total_num_nodes * 4);
-  COPY_DATA(arr_starts, data_cpu.num_nets + 1);
+  COPY_DATA(rct_nodes_start, data_cpu.num_nets + 1);
 #undef COPY_DATA
 #define MALLOC_RESULTS(arr) allocateCUDA(data_gpu.arr, data_cpu.total_num_nodes * 4, float)
   MALLOC_RESULTS(load);
@@ -86,7 +87,7 @@ void copy_gpu_to_cpu(const RctCUDA data_gpu, RctCUDA data_cpu) {
 
 void free_gpu(RctCUDA data_gpu) {
 #define FREEG(arr) checkCUDA(cudaFree(data_gpu.arr))
-  FREEG(arr_starts);
+  FREEG(rct_nodes_start);
   FREEG(pid);
   FREEG(pres);
   FREEG(cap);
@@ -115,6 +116,7 @@ void rct_compute_cuda(RctCUDA data_cpu) {
   _prof::stop_timer("rct_compute_cuda__copy_g2c");
 }
 
+template <int BlockDim>
 __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
     // one block may process multiple nets 
     int net_id = blockIdx.x; 
@@ -124,11 +126,14 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
     __shared__ int num_edges; 
     __shared__ int num_nodes; 
     __shared__ RctEdgeCUDA* edges; 
-    //__shared__ int* parents; 
     __shared__ int* distances; 
+    __shared__ int* sort_counts; 
+    __shared__ int* orders; 
+    __shared__ int* pid; 
     __shared__ int root; 
     __shared__ int level; 
-    __shared__ int change_flag; 
+    __shared__ int count; // count the number of same distances for counting sort algorithm 
+                        // I also use count as the change flag 
 
     if (net_id < data_gpu.num_nets) {
 
@@ -138,11 +143,12 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
             num_edges = data_gpu.rct_edges_start[net_id + 1] - edges_offset; 
             num_nodes = data_gpu.rct_nodes_start[net_id + 1] - nodes_offset; 
             edges = data_gpu.rct_edges + edges_offset; 
-            //parents = data_gpu.rct_parents + nodes_offset; 
             distances = data_gpu.rct_distances + nodes_offset; 
+            sort_counts = data_gpu.rct_sort_counts + nodes_offset; 
+            orders = data_gpu.rct_orders + nodes_offset; 
+            pid = data_gpu.rct_pid + nodes_offset; 
             root = data_gpu.rct_roots[net_id]; 
             level = 0; 
-            change_flag = true; 
         }
         __syncthreads();
 
@@ -151,12 +157,14 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
             int& du = distances[u]; 
             // initialize 
             du = (u == root)? 0 : INT_MAX; 
+            // for counting sort 
+            sort_counts[u] = 0; 
         }
         __syncthreads(); 
 
-        while (change_flag) {
+        do {
             if (tid == 0) {
-                change_flag = false; 
+                count = 0; 
             }
             __syncthreads(); 
             // traverse edges, using all blockDim.x threads  
@@ -167,15 +175,28 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
                     int& dt = distances[edge.t]; 
                     if (level + 1 < dt) {
                         dt = level + 1; 
-                        //parents[edge.t] = edge.s; 
-                        atomicExch(&change_flag, true); 
+                        atomicAdd(&count, 1);
                     }
                 }
             }
             if (tid == 0) {
+                // counting sort 
+                sort_counts[level] = count; 
+                // next level 
                 level += 1; 
             }
             __syncthreads(); 
+        } while (count); 
+
+        // argsort nodes according to distances to root 
+        block_couting_sort<BlockDim>(distances, sort_counts, orders, nullptr, num_nodes, 0, num_nodes-1, false); 
+        
+        // construct pid 
+        for (int e = tid; e < num_edges; e += blockDim.x) {
+            RctEdgeCUDA const& edge = edges[e]; 
+            int order_s = orders[edge.s]; 
+            int order_t = orders[edge.t]; 
+            pid[order_t] = order_t - order_s;
         }
     }
 }
@@ -192,25 +213,28 @@ RctEdgeArrayCUDA copy_cpu_to_gpu(const RctEdgeArrayCUDA data_cpu) {
   COPY_DATA(rct_nodes_start, data_cpu.num_nets + 1);
 #undef COPY_DATA
 #define MALLOC_RESULTS(arr) allocateCUDA(data_gpu.arr, data_cpu.total_num_nodes, int)
-  //MALLOC_RESULTS(rct_parents);
   MALLOC_RESULTS(rct_distances);
+  MALLOC_RESULTS(rct_sort_counts); 
+  MALLOC_RESULTS(rct_orders); 
 #undef MALLOC_RESULTS
   return data_gpu;
 }
 
 void copy_gpu_to_cpu(const RctEdgeArrayCUDA data_gpu, RctEdgeArrayCUDA data_cpu) {
 #define COPY_RESULTS(arr) memcpyDeviceHostCUDA(data_cpu.arr, data_gpu.arr, data_gpu.total_num_nodes)
-  COPY_RESULTS(rct_distances);
+  COPY_RESULTS(rct_orders);
+  COPY_RESULTS(rct_pid);
 #undef COPY_RESULTS
 }
 
 void free_gpu(RctEdgeArrayCUDA data_gpu) {
-#define FREEG(arr) checkCUDA(cudaFree(data_gpu.arr))
+#define FREEG(arr) destroyCUDA(data_gpu.arr)
   FREEG(rct_edges);
   FREEG(rct_edges_start);
   FREEG(rct_roots);
-  //FREEG(rct_parents);
   FREEG(rct_distances);
+  FREEG(rct_sort_counts); 
+  FREEG(rct_orders); 
   FREEG(rct_nodes_start);
 #undef FREEG
 }
@@ -219,8 +243,8 @@ void rct_bfs_cuda(RctEdgeArrayCUDA data_cpu) {
   RctEdgeArrayCUDA data_gpu = copy_cpu_to_gpu(data_cpu); 
   checkCUDA(cudaDeviceSynchronize());
   // the threads for one net 
-  int threads = 256; 
-  compute_net_bfs<<<(data_gpu.num_nets + threads - 1) / threads, threads>>>(data_gpu); 
+  constexpr int threads = 256; 
+  compute_net_bfs<threads><<<(data_gpu.num_nets + threads - 1) / threads, threads>>>(data_gpu); 
   checkCUDA(cudaDeviceSynchronize());
   copy_gpu_to_cpu(data_gpu, data_cpu); 
   checkCUDA(cudaDeviceSynchronize());

@@ -147,8 +147,10 @@ inline size_t Rct::num_edges() const {
 // This class is a storage stored in Timer instance
 struct FlatRctStorage {
   size_t total_num_nodes;
-  std::vector<int> arr_starts;
-  std::vector<int> pid;
+  std::vector<int> rct_nodes_start; ///< length of (num_nets + 1); record the offset of each net  
+  std::vector<int> pid; ///< length of total_num_nodes; record how far away its parent locates. 
+                        ///< For example, the parent of node i is i - pid[i]; the array itself is in BFS order. 
+  std::vector<int> bfs_reverse_order_map; ///< length of total_num_nodes; given a node, get its BFS order 
   std::vector<float> pres, cap;
 
   std::vector<float> load, delay, ldelay, impulse;
@@ -165,7 +167,8 @@ class FlatRct {
   
   FlatRctStorage *_stor;
   std::unordered_map<std::string, int> name2id;
-  std::vector<int> bfs_order_map, bfs_reverse_order_map;
+  //std::vector<int> bfs_order_map;
+  std::vector<int> bfs_reverse_order_map;
   size_t _num_nodes;
   int arr_start;
 

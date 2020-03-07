@@ -237,7 +237,7 @@ float Rct::total_ncap() const {
 
 // flat rct calculation on cpu
 void FlatRctStorage::_update_timing_cuda() {
-  if(!arr_starts.size()) {
+  if(!rct_nodes_start.size()) {
     OT_LOGE("rct storage update timing: not initialized");
     return;
   }
@@ -247,13 +247,13 @@ void FlatRctStorage::_update_timing_cuda() {
   delay.resize(total_num_nodes * 4);
   ldelay.resize(total_num_nodes * 4);
   impulse.resize(total_num_nodes * 4);
-  // has: total_num_nodes, arr_starts, pid, pres, cap, load, delay, ldelay, impulse
+  // has: total_num_nodes, rct_nodes_start, pid, pres, cap, load, delay, ldelay, impulse
 
   RctCUDA rct_cuda;
-  rct_cuda.num_nets = arr_starts.size() - 1;
+  rct_cuda.num_nets = rct_nodes_start.size() - 1;
   rct_cuda.total_num_nodes = total_num_nodes;
 #define COPY_PDATA(arr) rct_cuda.arr = arr.data();
-  COPY_PDATA(arr_starts);
+  COPY_PDATA(rct_nodes_start);
   COPY_PDATA(pid);
   COPY_PDATA(pres);
   COPY_PDATA(cap);
@@ -274,7 +274,7 @@ void FlatRctStorage::_update_timing_cuda() {
 // Sequential flat rct calculation
 // Just for debugging.
 void FlatRctStorage::_update_timing_cpu() {
-  if(!arr_starts.size()) {
+  if(!rct_nodes_start.size()) {
     OT_LOGE("rct storage update timing: not initialized");
     return;
   }
@@ -283,11 +283,11 @@ void FlatRctStorage::_update_timing_cpu() {
   delay.resize(total_num_nodes * 4);
   ldelay.resize(total_num_nodes * 4);
   impulse.resize(total_num_nodes * 4);
-  // has: total_num_nodes, arr_starts, pid, pres, cap, load, delay, ldelay, impulse
+  // has: total_num_nodes, rct_nodes_start, pid, pres, cap, load, delay, ldelay, impulse
 
-  for(size_t net_id = 0; net_id < arr_starts.size() - 1; ++net_id) {
+  for(size_t net_id = 0; net_id < rct_nodes_start.size() - 1; ++net_id) {
     for(unsigned int el_rf_offset = 0; el_rf_offset < MAX_SPLIT_TRAN; ++el_rf_offset) {
-      int st = arr_starts[net_id], ed = arr_starts[net_id + 1];
+      int st = rct_nodes_start[net_id], ed = rct_nodes_start[net_id + 1];
       int st4 = st * 4 + el_rf_offset, ed4 = ed * 4 + el_rf_offset;
       int rst4 = ed4 - 4, red4 = st4;   // red4 = st4, jumping over the root
 
@@ -432,7 +432,7 @@ void Net::_test_flat_rct() {
   auto &rct = *prct;
 
   rct.name2id.clear();
-  rct.bfs_order_map.resize(0);
+  //rct.bfs_order_map.resize(0);
   rct.bfs_reverse_order_map.resize(0);
 }
 
@@ -497,7 +497,7 @@ void Net::_make_flat_rct() {
 
   // Step 4: BFS to compute order
   std::deque<int> q;
-  rct.bfs_order_map.resize(num_nodes);
+  //rct.bfs_order_map.resize(num_nodes);
   rct.bfs_reverse_order_map.resize(num_nodes);
   std::vector<char> vis(num_nodes, false);
 
@@ -510,7 +510,7 @@ void Net::_make_flat_rct() {
 
   vis[root] = true;
   q.push_back(root);
-  rct.bfs_order_map[0] = root;
+  //rct.bfs_order_map[0] = root;
   rct.bfs_reverse_order_map[root] = 0;
   cnt = 1;
 
@@ -521,7 +521,7 @@ void Net::_make_flat_rct() {
     for(auto const &[v, res] : edges[u]) {
       if(!vis[v]) {
         vis[v] = true;
-        rct.bfs_order_map[cnt] = v;
+        //rct.bfs_order_map[cnt] = v;
         rct.bfs_reverse_order_map[v] = cnt;
         _stor->pid[rct.arr_start + cnt] = cnt - uid;
         _stor->pres[rct.arr_start + cnt] = res;

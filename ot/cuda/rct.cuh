@@ -4,7 +4,8 @@
 struct RctCUDA {
   int num_nets;
   int total_num_nodes;
-  int *arr_starts, *pid;
+  int *rct_nodes_start; 
+  int *pid;
   float *pres, *cap, *load, *delay, *ldelay, *impulse;
 };
 
@@ -22,8 +23,11 @@ struct RctEdgeArrayCUDA {
 
     int* rct_roots; ///< length of num_nets, record the root 
 
-    //int* rct_parents; ///< parents of each node in BFS order  
     int* rct_distances; ///< distances to root 
+    int* rct_sort_counts; ///< length of total_num_nodes, count of same distances for counting sort algorithm 
+    int* rct_orders; ///< length of total_num_nodes, given node i, should be at location order[i]; same as bfs_reverse_order_map
+    int* rct_pid; ///< length of total_num_nodes; record how far away its parent locates. 
+                ///< For example, the parent of node i is i - pid[i]; the array itself is in BFS order. 
     int* rct_nodes_start; ///< length of (num_nets + 1)
 };
 
