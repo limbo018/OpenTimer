@@ -26,19 +26,19 @@ __global__ void compute_net_timing(RctCUDA rct) {
 
   // update load from downstream to upstream
   for(int i = rst4, j = ed - 1; i > red4; i -= 4, --j) {
-    int prev = i - rct.pid[j] * 4;
+    int prev = i - rct.rct_pid[j] * 4;
     rct.load[prev] += rct.load[i];
   }
 
   // update delay from upstream to downstream
   for(int i = st4 + 4, j = st + 1; i < ed4; i += 4, ++j) {
-    int prev = i - rct.pid[j] * 4;
+    int prev = i - rct.rct_pid[j] * 4;
     rct.delay[i] += rct.delay[prev] + rct.load[i] * rct.pres[j];
   }
 
   // update cap*delay from downstream to upstream
   for(int i = rst4, j = ed - 1; i > red4; i -= 4, --j) {
-    int prev = i - rct.pid[j] * 4;
+    int prev = i - rct.rct_pid[j] * 4;
     rct.ldelay[i] += rct.cap[i] * rct.delay[i];
     rct.ldelay[prev] += rct.ldelay[i];
   }
@@ -46,7 +46,7 @@ __global__ void compute_net_timing(RctCUDA rct) {
 
   // update beta from upstream to downstream
   for(int i = st4 + 4, j = st + 1; i < ed4; i += 4, ++j) {
-    int prev = i - rct.pid[j] * 4;
+    int prev = i - rct.rct_pid[j] * 4;
     rct.impulse[i] += rct.impulse[prev] + rct.ldelay[i] * rct.pres[j];
   }
 
@@ -57,12 +57,12 @@ __global__ void compute_net_timing(RctCUDA rct) {
   }
 }
 
-RctCUDA copy_cpu_to_gpu(const RctCUDA data_cpu) {
+RctCUDA copy_cpu_to_gpu(const RctCUDA& data_cpu) {
   RctCUDA data_gpu;
   data_gpu.num_nets = data_cpu.num_nets;
   data_gpu.total_num_nodes = data_cpu.total_num_nodes;
 #define COPY_DATA(arr, sz) allocateCopyCUDA(data_gpu.arr, data_cpu.arr, sz)
-  COPY_DATA(pid, data_cpu.total_num_nodes);
+  COPY_DATA(rct_pid, data_cpu.total_num_nodes);
   COPY_DATA(pres, data_cpu.total_num_nodes);
   COPY_DATA(cap, data_cpu.total_num_nodes * 4);
   COPY_DATA(rct_nodes_start, data_cpu.num_nets + 1);
@@ -88,7 +88,7 @@ void copy_gpu_to_cpu(const RctCUDA data_gpu, RctCUDA data_cpu) {
 void free_gpu(RctCUDA data_gpu) {
 #define FREEG(arr) checkCUDA(cudaFree(data_gpu.arr))
   FREEG(rct_nodes_start);
-  FREEG(pid);
+  FREEG(rct_pid);
   FREEG(pres);
   FREEG(cap);
   FREEG(load);
@@ -118,14 +118,15 @@ void rct_compute_cuda(RctCUDA data_cpu) {
 
 template <int BlockDim>
 __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
-    // one block may process multiple nets 
-    int net_id = blockIdx.x; 
-    int tid = threadIdx.x; 
+    // one block processes one net
+    assert(blockDim.x == BlockDim);
+    //const int net_id = blockIdx.x; 
+    const int tid = threadIdx.x; 
     __shared__ int nodes_offset; 
     __shared__ int edges_offset; 
     __shared__ int num_edges; 
     __shared__ int num_nodes; 
-    __shared__ RctEdgeCUDA* edges; 
+    __shared__ RctEdgeCUDA* edges; // modified inplace from undirected edges to directed according to BFS order 
     __shared__ int* distances; 
     __shared__ int* sort_counts; 
     __shared__ int* orders; 
@@ -135,7 +136,7 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
     __shared__ int count; // count the number of same distances for counting sort algorithm 
                         // I also use count as the change flag 
 
-    if (net_id < data_gpu.num_nets) {
+    for (int net_id = blockIdx.x; net_id < data_gpu.num_nets; net_id += gridDim.x) {
 
         if (tid == 0) {
             nodes_offset = data_gpu.rct_nodes_start[net_id]; 
@@ -149,20 +150,21 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
             pid = data_gpu.rct_pid + nodes_offset; 
             root = data_gpu.rct_roots[net_id]; 
             level = 0; 
+            count = 1; 
         }
         __syncthreads();
+#ifdef DEBUG
+        assert(nodes_offset + num_nodes <= data_gpu.total_num_nodes);
+        assert(edges_offset + num_edges <= data_gpu.total_num_edges);
+#endif
 
-        // initialize distance by traversing nodes, using all blockDim.x threads 
+        // initialize distance and sort_counts for root 
         for (int u = tid; u < num_nodes; u += blockDim.x) {
-            int& du = distances[u]; 
-            // initialize 
-            du = (u == root)? 0 : INT_MAX; 
-            // for counting sort 
-            sort_counts[u] = 0; 
+            distances[u] = (u == root)? 0 : INT_MAX; 
+            sort_counts[u] = (u == 0)? 1 : 0;
         }
-        __syncthreads(); 
 
-        do {
+        for (int iter = 0; iter < num_nodes; ++iter) {
             if (tid == 0) {
                 count = 0; 
             }
@@ -170,30 +172,103 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
             // traverse edges, using all blockDim.x threads  
             for (int e = tid; e < num_edges; e += blockDim.x) {
                 RctEdgeCUDA& edge = edges[e]; 
+#ifdef DEBUG
+                assert(edge.s < num_nodes); 
+                assert(edge.t < num_nodes);
+#endif
+                // assume the input edges are undirected 
+                // we need to determine the direction  
                 int& ds = distances[edge.s]; 
+                int& dt = distances[edge.t]; 
                 if (ds == level) {
-                    int& dt = distances[edge.t]; 
                     if (level + 1 < dt) {
                         dt = level + 1; 
                         atomicAdd(&count, 1);
                     }
                 }
-            }
-            if (tid == 0) {
-                // counting sort 
-                sort_counts[level] = count; 
-                // next level 
-                level += 1; 
+                else if (dt == level) {
+                    if (level + 1 < ds) {
+                        ds = level + 1; 
+                        atomicAdd(&count, 1);
+                        // swap s -> t to t -> s 
+                        int tmp = edge.s; 
+                        edge.s = edge.t; 
+                        edge.t = tmp; 
+                    }
+                }
             }
             __syncthreads(); 
-        } while (count); 
+            if (count) {
+                if (tid == 0) {
+#ifdef DEBUG
+                    assert(level < num_nodes); 
+                    assert(level >= 0);
+                    assert(nodes_offset + level < data_gpu.total_num_nodes);
+#endif
+                    // next level 
+                    level += 1; 
+                    sort_counts[level] = count; 
+                }
+            } 
+            else
+            {
+                break; 
+            }
+            __syncthreads(); 
+#ifdef DEBUG
+            if (tid < num_edges && count == 0) {
+                for (int u = 0; u < num_nodes; ++u) {
+                    assert(distances[u] < num_nodes);
+                }
+            }
+#endif
+        } 
+        __syncthreads(); 
 
+#if 1
+        // debug 
+        for (int u = 0; u < num_nodes; ++u) {
+            if (distances[u] > num_nodes - 1) {
+                printf("net_id = %d, num_nodes = %d, num_edges = %d, nodes_offset = %d, edges_offset = %d, root = %d, level = %d, d = %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, \n(%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d)\n", 
+                        net_id, num_nodes, num_edges, nodes_offset, edges_offset, root, level, 
+                        (num_nodes> 0)? distances[0] : -1, 
+                        (num_nodes> 1)? distances[1] : -1, 
+                        (num_nodes> 2)? distances[2] : -1, 
+                        (num_nodes> 3)? distances[3] : -1, 
+                        (num_nodes> 4)? distances[4] : -1, 
+                        (num_nodes> 5)? distances[5] : -1, 
+                        (num_nodes> 6)? distances[6] : -1, 
+                        (num_nodes> 7)? distances[7] : -1, 
+                        (num_nodes> 8)? distances[8] : -1, 
+                        (num_nodes> 9)? distances[9] : -1, 
+                        (num_edges > 0)? edges[0].s : -1, (num_edges > 0)? edges[0].t : -1, 
+                        (num_edges > 1)? edges[1].s : -1, (num_edges > 1)? edges[1].t : -1, 
+                        (num_edges > 2)? edges[2].s : -1, (num_edges > 2)? edges[2].t : -1, 
+                        (num_edges > 3)? edges[3].s : -1, (num_edges > 3)? edges[3].t : -1, 
+                        (num_edges > 4)? edges[4].s : -1, (num_edges > 4)? edges[4].t : -1,
+                        (num_edges > 5)? edges[5].s : -1, (num_edges > 5)? edges[5].t : -1, 
+                        (num_edges > 6)? edges[6].s : -1, (num_edges > 6)? edges[6].t : -1, 
+                        (num_edges > 7)? edges[7].s : -1, (num_edges > 7)? edges[7].t : -1, 
+                        (num_edges > 8)? edges[8].s : -1, (num_edges > 8)? edges[8].t : -1, 
+                        (num_edges > 9)? edges[9].s : -1, (num_edges > 9)? edges[9].t : -1
+                        ); 
+                assert(0);
+            }
+        }
+        __syncthreads();
+#endif
+    
         // argsort nodes according to distances to root 
         block_couting_sort<BlockDim>(distances, sort_counts, orders, nullptr, num_nodes, 0, num_nodes-1, false); 
         
+
         // construct pid 
         for (int e = tid; e < num_edges; e += blockDim.x) {
             RctEdgeCUDA const& edge = edges[e]; 
+#ifdef DEBUG
+            assert(edge.s < num_nodes); 
+            assert(edge.t < num_nodes); 
+#endif
             int order_s = orders[edge.s]; 
             int order_t = orders[edge.t]; 
             pid[order_t] = order_t - order_s;
@@ -201,28 +276,30 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
     }
 }
 
-RctEdgeArrayCUDA copy_cpu_to_gpu(const RctEdgeArrayCUDA data_cpu) {
+RctEdgeArrayCUDA copy_cpu_to_gpu(const RctEdgeArrayCUDA& data_cpu) {
   RctEdgeArrayCUDA data_gpu;
   data_gpu.num_nets = data_cpu.num_nets;
   data_gpu.total_num_nodes = data_cpu.total_num_nodes; 
   data_gpu.total_num_edges = data_cpu.total_num_edges;
 #define COPY_DATA(arr, sz) allocateCopyCUDA(data_gpu.arr, data_cpu.arr, sz)
-  COPY_DATA(rct_edges, data_cpu.total_num_nodes);
-  COPY_DATA(rct_roots, data_cpu.num_nets + 1);
+  COPY_DATA(rct_edges, data_cpu.total_num_edges);
+  COPY_DATA(rct_roots, data_cpu.num_nets);
   COPY_DATA(rct_nodes_start, data_cpu.num_nets + 1);
 #undef COPY_DATA
 #define MALLOC_RESULTS(arr) allocateCUDA(data_gpu.arr, data_cpu.total_num_nodes, int)
   MALLOC_RESULTS(rct_distances);
   MALLOC_RESULTS(rct_sort_counts); 
   MALLOC_RESULTS(rct_node2bfs_order); 
+  MALLOC_RESULTS(rct_pid); 
 #undef MALLOC_RESULTS
   return data_gpu;
 }
 
 void copy_gpu_to_cpu(const RctEdgeArrayCUDA data_gpu, RctEdgeArrayCUDA data_cpu) {
-#define COPY_RESULTS(arr) memcpyDeviceHostCUDA(data_cpu.arr, data_gpu.arr, data_gpu.total_num_nodes)
-  COPY_RESULTS(rct_node2bfs_order);
-  COPY_RESULTS(rct_pid);
+#define COPY_RESULTS(arr, sz) memcpyDeviceHostCUDA(data_cpu.arr, data_gpu.arr, sz)
+  COPY_RESULTS(rct_edges, data_gpu.total_num_edges); 
+  COPY_RESULTS(rct_node2bfs_order, data_gpu.total_num_nodes);
+  COPY_RESULTS(rct_pid, data_gpu.total_num_nodes);
 #undef COPY_RESULTS
 }
 
@@ -234,17 +311,24 @@ void free_gpu(RctEdgeArrayCUDA data_gpu) {
   FREEG(rct_sort_counts); 
   FREEG(rct_node2bfs_order); 
   FREEG(rct_nodes_start);
+  FREEG(rct_pid);
 #undef FREEG
 }
 
 void rct_bfs_cuda(RctEdgeArrayCUDA data_cpu) {
+  _prof::setup_timer("rct_bfs_cuda__copy_c2g");
   RctEdgeArrayCUDA data_gpu = copy_cpu_to_gpu(data_cpu); 
   checkCUDA(cudaDeviceSynchronize());
+  _prof::stop_timer("rct_bfs_cuda__copy_c2g");
+  _prof::setup_timer("rct_bfs_cuda__compute");
   // the threads for one net 
-  constexpr int threads = 256; 
-  compute_net_bfs<threads><<<(data_gpu.num_nets + threads - 1) / threads, threads>>>(data_gpu); 
+  constexpr int threads = 128; 
+  compute_net_bfs<threads><<<data_gpu.num_nets, threads>>>(data_gpu); 
   checkCUDA(cudaDeviceSynchronize());
+  _prof::stop_timer("rct_bfs_cuda__compute");
+  _prof::setup_timer("rct_bfs_cuda__copy_g2c");
   copy_gpu_to_cpu(data_gpu, data_cpu); 
   checkCUDA(cudaDeviceSynchronize());
   free_gpu(data_gpu); 
+  _prof::stop_timer("rct_bfs_cuda__copy_g2c");
 }

@@ -4,6 +4,8 @@
  * @date   Mar 2020
  * @brief  Counting sort algorithm in CUDA 
  */
+#ifndef OT_CUDA_SORT_CUH_
+#define OT_CUDA_SORT_CUH_
 
 #include <cstdlib>
 #include <cassert>
@@ -60,7 +62,7 @@ __device__ void block_prefix_sum(int* data, int n) {
 /// @param init_counts whether initialize count array or not 
 template <int BlockDim, int ItemsPerThread=4>
 __device__ void block_couting_sort(const int* inputs, int* counts, int *orders, int* outputs, int n, int amin, int amax, bool init_counts) {
-    assert(amin < amax); 
+    assert(amin <= amax); 
     int tid = threadIdx.x; 
 
     // compute counting array if not initialized 
@@ -71,14 +73,61 @@ __device__ void block_couting_sort(const int* inputs, int* counts, int *orders, 
     }
     __syncthreads(); 
 
+#ifdef DEBUG 
+    // debug 
+    for (int i = 0; i < n; ++i) {
+        assert(inputs[i] <= amax);
+    }
+    __syncthreads(); 
+#endif
+
     // prefix sum 
     block_prefix_sum<BlockDim, ItemsPerThread>(counts, n); 
+#if 0 // sequential alternative 
+    if (tid == 0) {
+        for (int i = 1; i < n; ++i) {
+            counts[i] += counts[i-1];
+        }
+    }
+#endif
+    __syncthreads(); 
+
+    // debug 
+    for (int i = 0; i < n; ++i) {
+        assert(inputs[i] <= amax);
+    }
+    __syncthreads(); 
 
     // determine order by parallel traversing the value, not the index 
     for (int i = 0; i < n; ++i) {
         int val = inputs[i];
+#ifdef DEBUG 
+        assert(val <= amax);
+#endif
         int val_amin = val - amin;
         if (tid == (val_amin % blockDim.x)) {
+            int count = (--counts[val_amin]); 
+#ifdef DEBUG 
+            assert(count >= 0); 
+            assert(count < n); 
+#endif
+            if (orders) {
+                orders[i] = count; 
+            }
+            if (outputs) {
+                outputs[count] = val; 
+            }
+        }
+    }
+
+#if 0 // sequential alternative 
+    if (tid == 0) {
+        for (int i = 0; i < n; ++i) {
+            int val = inputs[i]; 
+#ifdef DEBUG 
+            assert(val <= amax);
+#endif
+            int val_amin = val - amin; 
             int count = (--counts[val_amin]); 
             if (orders) {
                 orders[i] = count; 
@@ -88,5 +137,8 @@ __device__ void block_couting_sort(const int* inputs, int* counts, int *orders, 
             }
         }
     }
+#endif
+    __syncthreads();
 }
 
+#endif
