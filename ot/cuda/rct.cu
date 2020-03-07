@@ -121,8 +121,8 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
     // one block may process multiple nets 
     int net_id = blockIdx.x; 
     int tid = threadIdx.x; 
-    __shared__ int edges_offset; 
     __shared__ int nodes_offset; 
+    __shared__ int edges_offset; 
     __shared__ int num_edges; 
     __shared__ int num_nodes; 
     __shared__ RctEdgeCUDA* edges; 
@@ -138,14 +138,14 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
     if (net_id < data_gpu.num_nets) {
 
         if (tid == 0) {
-            edges_offset = data_gpu.rct_edges_start[net_id]; 
             nodes_offset = data_gpu.rct_nodes_start[net_id]; 
-            num_edges = data_gpu.rct_edges_start[net_id + 1] - edges_offset; 
+            edges_offset = nodes_offset - net_id; 
             num_nodes = data_gpu.rct_nodes_start[net_id + 1] - nodes_offset; 
+            num_edges = num_nodes - 1; 
             edges = data_gpu.rct_edges + edges_offset; 
             distances = data_gpu.rct_distances + nodes_offset; 
             sort_counts = data_gpu.rct_sort_counts + nodes_offset; 
-            orders = data_gpu.rct_orders + nodes_offset; 
+            orders = data_gpu.rct_node2bfs_order + nodes_offset; 
             pid = data_gpu.rct_pid + nodes_offset; 
             root = data_gpu.rct_roots[net_id]; 
             level = 0; 
@@ -208,21 +208,20 @@ RctEdgeArrayCUDA copy_cpu_to_gpu(const RctEdgeArrayCUDA data_cpu) {
   data_gpu.total_num_edges = data_cpu.total_num_edges;
 #define COPY_DATA(arr, sz) allocateCopyCUDA(data_gpu.arr, data_cpu.arr, sz)
   COPY_DATA(rct_edges, data_cpu.total_num_nodes);
-  COPY_DATA(rct_edges_start, data_cpu.num_nets + 1);
   COPY_DATA(rct_roots, data_cpu.num_nets + 1);
   COPY_DATA(rct_nodes_start, data_cpu.num_nets + 1);
 #undef COPY_DATA
 #define MALLOC_RESULTS(arr) allocateCUDA(data_gpu.arr, data_cpu.total_num_nodes, int)
   MALLOC_RESULTS(rct_distances);
   MALLOC_RESULTS(rct_sort_counts); 
-  MALLOC_RESULTS(rct_orders); 
+  MALLOC_RESULTS(rct_node2bfs_order); 
 #undef MALLOC_RESULTS
   return data_gpu;
 }
 
 void copy_gpu_to_cpu(const RctEdgeArrayCUDA data_gpu, RctEdgeArrayCUDA data_cpu) {
 #define COPY_RESULTS(arr) memcpyDeviceHostCUDA(data_cpu.arr, data_gpu.arr, data_gpu.total_num_nodes)
-  COPY_RESULTS(rct_orders);
+  COPY_RESULTS(rct_node2bfs_order);
   COPY_RESULTS(rct_pid);
 #undef COPY_RESULTS
 }
@@ -230,11 +229,10 @@ void copy_gpu_to_cpu(const RctEdgeArrayCUDA data_gpu, RctEdgeArrayCUDA data_cpu)
 void free_gpu(RctEdgeArrayCUDA data_gpu) {
 #define FREEG(arr) destroyCUDA(data_gpu.arr)
   FREEG(rct_edges);
-  FREEG(rct_edges_start);
   FREEG(rct_roots);
   FREEG(rct_distances);
   FREEG(rct_sort_counts); 
-  FREEG(rct_orders); 
+  FREEG(rct_node2bfs_order); 
   FREEG(rct_nodes_start);
 #undef FREEG
 }

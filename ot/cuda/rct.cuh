@@ -15,20 +15,19 @@ struct RctEdgeCUDA {
 }; 
 
 struct RctEdgeArrayCUDA {
-    int num_nets; 
-    int total_num_nodes; ///< rct_nodes_start[num_nets]
-    int total_num_edges; ///< rct_edges_start[num_nets]
-    RctEdgeCUDA* rct_edges; ///< length of rct_edges_start[num_nets]
-    int* rct_edges_start; ///< length of (num_nets + 1)
+    int num_nets; ///< input
+    int total_num_nodes; ///< input rct_nodes_start[num_nets]
+    int total_num_edges; ///< input rct_edges_start[num_nets]
+    int* rct_nodes_start; ///< input length of (num_nets + 1)
+    RctEdgeCUDA* rct_edges; ///< input length of rct_edges_start[num_nets]
+    int* rct_roots; ///< input length of num_nets, record the root 
 
-    int* rct_roots; ///< length of num_nets, record the root 
+    int* rct_distances; ///< intermediate, distances to root 
+    int* rct_sort_counts; ///< intermediate, length of total_num_nodes, count of same distances for counting sort algorithm 
 
-    int* rct_distances; ///< distances to root 
-    int* rct_sort_counts; ///< length of total_num_nodes, count of same distances for counting sort algorithm 
-    int* rct_orders; ///< length of total_num_nodes, given node i, should be at location order[i]; same as bfs_reverse_order_map
-    int* rct_pid; ///< length of total_num_nodes; record how far away its parent locates. 
+    int* rct_node2bfs_order; ///< output, length of total_num_nodes, given node i, should be at location order[i]; same as bfs_reverse_order_map
+    int* rct_pid; ///< output, length of total_num_nodes; record how far away its parent locates. 
                 ///< For example, the parent of node i is i - pid[i]; the array itself is in BFS order. 
-    int* rct_nodes_start; ///< length of (num_nets + 1)
 };
 
 void rct_compute_cuda(RctCUDA data_cpu);

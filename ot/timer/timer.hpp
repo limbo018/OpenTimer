@@ -154,7 +154,7 @@ class Timer {
     std::unordered_map<std::string, Gate> _gates;
     std::unordered_map<std::string, Clock> _clocks;
 
-    std::optional<FlatRctStorage> _flat_rct_stor;
+    std::variant<FlatRctStorage, FlatRct2Storage> _flat_rct_stor;
  
     std::list<Test> _tests;
     std::list<Arc> _arcs;

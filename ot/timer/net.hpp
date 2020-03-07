@@ -13,6 +13,8 @@ class RctNode;
 class Rct;
 struct FlatRctStorage;
 class FlatRct;
+class FlatRct2Storage; 
+class FlatRct2; 
 
 // ------------------------------------------------------------------------------------------------
 
@@ -148,9 +150,9 @@ inline size_t Rct::num_edges() const {
 struct FlatRctStorage {
   size_t total_num_nodes;
   std::vector<int> rct_nodes_start; ///< length of (num_nets + 1); record the offset of each net  
-  std::vector<int> pid; ///< length of total_num_nodes; record how far away its parent locates. 
-                        ///< For example, the parent of node i is i - pid[i]; the array itself is in BFS order. 
-  std::vector<int> bfs_reverse_order_map; ///< length of total_num_nodes; given a node, get its BFS order 
+  std::vector<int> rct_pid; ///< length of total_num_nodes; record how far away its parent locates. 
+                        ///< For example, the parent of node i is i - rct_pid[i]; the array itself is in BFS order. 
+  std::vector<int> rct_node2bfs_order; ///< length of total_num_nodes; given a node, get its BFS order 
   std::vector<float> pres, cap;
 
   std::vector<float> load, delay, ldelay, impulse;
@@ -168,12 +170,60 @@ class FlatRct {
   FlatRctStorage *_stor;
   std::unordered_map<std::string, int> name2id;
   //std::vector<int> bfs_order_map;
-  std::vector<int> bfs_reverse_order_map;
+  std::vector<int> rct_node2bfs_order;
   size_t _num_nodes;
   int arr_start;
 
 public:
   FlatRct() = default;
+  float slew(int, Split, Tran, float) const;
+  float delay(int, Split, Tran) const;
+
+private:
+  void _scale_capacitance(float);
+  void _scale_resistance(float);
+};
+
+// ------------------------------------------------------------------------------------------------
+
+// ------------------------------------------------------------------------------------------------
+// FlatRct2 support is built for CUDA Acceleration with BFS on CUDA.
+
+// Class: FlatRctStorage
+// This class is a storage stored in Timer instance
+struct FlatRct2Storage {
+  size_t total_num_nodes;
+  size_t total_num_edges; 
+  std::vector<int> rct_nodes_start; ///< length of (num_nets + 1); record the offset of each net  
+  std::vector<RctEdgeCUDA> rct_edges; ///< length of total_num_edges; 
+  std::vector<float> rct_edge_res; ///< length of total_num_edges; edge resistance 
+  std::vector<int> rct_roots; ///< length of num_nets, root of each rc tree   
+  std::vector<int> rct_pid; ///< length of total_num_nodes; record how far away its parent locates. 
+                        ///< For example, the parent of node i is i - rct_pid[i]; the array itself is in BFS order. 
+  std::vector<int> rct_node2bfs_order; ///< length of total_num_nodes; given a node, get its BFS order 
+  std::vector<float> pres, cap;
+
+  std::vector<float> load, delay, ldelay, impulse;
+
+  void _update_timing_cpu();
+  void _update_timing_cuda();
+};
+
+// Class: FlatRct2
+// This is essentially a pointer to a region of one FlatRctStorage
+class FlatRct2 {
+  friend class Net;
+  friend class Timer;
+  
+  FlatRct2Storage *_stor;
+  std::unordered_map<std::string, int> name2id;
+  size_t _num_nodes;
+  int _arr_start;
+  int _edge_start; 
+  int _net_id; 
+
+public:
+  FlatRct2() = default;
   float slew(int, Split, Tran, float) const;
   float delay(int, Split, Tran) const;
 
@@ -213,7 +263,7 @@ class Net {
 
     std::list<Pin*> _pins;
 
-    std::variant<EmptyRct, Rct, FlatRct> _rct;
+    std::variant<EmptyRct, Rct, FlatRct, FlatRct2> _rct;
 
     std::optional<spef::Net> _spef_net;
 
@@ -226,12 +276,15 @@ class Net {
     
     void _update_rc_timing();
     void _update_rc_timing_flat();
+    void _update_rc_timing_flat2();
     void _attach(spef::Net&&);
     void _make_rct();
     //void _make_rct(const spef::Net&);
     size_t _init_flat_rct(FlatRctStorage*, int);
+    size_t _init_flat_rct2(FlatRct2Storage*, int, int, int);
     void _test_flat_rct();
-    void _make_flat_rct();
+    void _make_flat_rct2();
+    void _make_flat_rct2();
     void _insert_pin(Pin&);
     void _remove_pin(Pin&);
     void _scale_capacitance(float);

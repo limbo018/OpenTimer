@@ -925,10 +925,10 @@ void Timer::_build_rc_timing_tasks() {
   _prof::setup_timer("_build_rc_timing_tasks");
   // Emplace all rc timing tasks
 
-  if(_has_state(CUDA_ENABLED)) {
+  constexpr int alg = 0; 
+  if(_has_state(CUDA_ENABLED) && alg == 0) {
     // Step 1: Allocate the space for FlatRct's
-    _flat_rct_stor.emplace();
-    auto &stor = *_flat_rct_stor;
+    auto& stor = _flat_rct_stor.emplace<FlatRctStorage>();
     
     stor.rct_nodes_start.reserve(_nets.size() + 1);
     
@@ -942,7 +942,8 @@ void Timer::_build_rc_timing_tasks() {
     }
     stor.rct_nodes_start.push_back(total_num_nodes);
     stor.total_num_nodes = total_num_nodes;
-    stor.pid.resize(total_num_nodes);
+    stor.rct_roots.resize(_nets.size());
+    stor.rct_pid.resize(total_num_nodes);
     stor.pres.resize(total_num_nodes);
     stor.cap.resize(total_num_nodes * MAX_SPLIT_TRAN);
 
@@ -953,7 +954,44 @@ void Timer::_build_rc_timing_tasks() {
 
     // Step 3: Create task for computing FlatRctStorage
     auto task_compute = _taskflow.emplace([this] () {
-        _flat_rct_stor->_update_timing_cuda();
+        _flat_rct_stor._update_timing_cuda();
+      });
+
+    pf_pair.second.precede(task_compute);
+    //task_init_omp.precede(task_compute);
+  }
+  else if(_has_state(CUDA_ENABLED) && alg == 1) {
+    // Step 1: Allocate the space for FlatRct's
+    auto& stor = _flat_rct_stor.emplace<FlatRct2Storage>();
+    
+    stor.rct_nodes_start.reserve(_nets.size() + 1);
+    stor.rct_edges_start.reserve(_nets.size() + 1); 
+    
+    int total_num_nodes = 0;
+    int total_num_edges = 0; 
+    for(auto &p : _nets) {
+      size_t sz = p.second._init_flat_rct2(&stor, total_num_nodes, total_num_edges);
+      if(!sz) continue;
+
+      stor.rct_nodes_start.push_back(total_num_nodes);
+      total_num_nodes += sz;
+      total_num_edges += sz - 1; 
+    }
+    stor.rct_nodes_start.push_back(total_num_nodes);
+    stor.total_num_nodes = total_num_nodes;
+    stor.rct_edges_res.resize(total_num_edges); 
+    stor.rct_pid.resize(total_num_nodes);
+    stor.pres.resize(total_num_nodes);
+    stor.cap.resize(total_num_nodes * MAX_SPLIT_TRAN);
+
+    // Step 2: Create task for FlatRct make
+    auto pf_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
+        p.second._update_rc_timing_flat();
+      });
+
+    // Step 3: Create task for computing FlatRctStorage
+    auto task_compute = _taskflow.emplace([this] () {
+        _flat_rct_stor._update_timing_cuda();
       });
 
     pf_pair.second.precede(task_compute);
@@ -1133,7 +1171,7 @@ void Timer::_update_timing() {
     }
     if(r2) {
       for(auto const &[name, id] : r2->name2id) {
-        int o = (r2->arr_start + r2->bfs_reverse_order_map[id]) * 4;
+        int o = (r2->arr_start + r2->rct_node2bfs_order[id]) * 4;
         auto const &st = *(r2->_stor);
         std::cout << "FlatRct: " << name << ' ' << st.cap[o] << ' ' << st.load[o] << ' ' << st.delay[o] << ' ' << st.ldelay[o] << ' ' << st.impulse[o] << std::endl;
       }
