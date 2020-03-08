@@ -522,7 +522,7 @@ void Net::_test_flat_rct() {
   if(!prct) return;
   auto &rct = *prct;
 
-  rct.name2id.clear();
+  rct._name2id.clear();
   //rct.bfs_order_map.resize(0);
   //rct.rct_node2bfs_order.resize(0);
 }
@@ -543,8 +543,6 @@ void Net::_make_flat_rct() {
 
   st = _prof::timestamp();
 
-  //rct.name2id.reserve(num_nodes);
-
   // Step 2: build map std::string->int
   int cnt = 0;
   for(const auto& [node1, node2, cap] : _spef_net->caps) {
@@ -552,7 +550,7 @@ void Net::_make_flat_rct() {
 
     // ground capacitance
     if(node2.empty()) {
-      rct.name2id[node1] = cnt;
+      rct.insert(node1, cnt); 
       ++cnt;
     }
     else {
@@ -567,17 +565,19 @@ void Net::_make_flat_rct() {
 
   for(const auto& [node1, node2, res] : _spef_net->ress) {
     int a, b;
-    if(auto const &it = rct.name2id.find(node1); it != rct.name2id.end()) {
+    if(auto const &it = rct.find(node1); it != rct.end()) {
       a = it->second;
     }
     else {
-      rct.name2id[node1] = a = cnt++;
+      a = cnt++;
+      rct.insert(node1, a); 
     }
-    if(auto const &it = rct.name2id.find(node2); it != rct.name2id.end()) {
+    if(auto const &it = rct.find(node2); it != rct.end()) {
       b = it->second;
     }
     else {
-      rct.name2id[node2] = b = cnt++;
+      b = cnt++;
+      rct.insert(node2, b); 
     }
 
     edges[a].emplace_back(b, res);
@@ -593,7 +593,7 @@ void Net::_make_flat_rct() {
   std::vector<char> vis(num_nodes, false);
 
   int root;
-  if(auto it = rct.name2id.find(_root->name()); it == rct.name2id.end()) {
+  if(auto it = rct.find(_root->name()); it == rct.end()) {
     OT_LOGE("flat rct make cannot locate root in spef tree");
     return;
   }
@@ -632,14 +632,14 @@ void Net::_make_flat_rct() {
 
   for(const auto& [node1, node2, cap] : _spef_net->caps) {
     (void)node2;
-    int pos = rct.rct_node2bfs_order[rct.name2id[node1]];
+    int pos = rct.rct_node2bfs_order[rct.find(node1)->second];
     for(int i = 0; i < MAX_SPLIT_TRAN; ++i) {
       _stor->cap[(rct._arr_start + pos) * MAX_SPLIT_TRAN + i] = cap;
     }
   }
 
   for(auto pin : _pins) {
-    if(auto it = rct.name2id.find(pin->name()); it != rct.name2id.end()) {
+    if(auto it = rct.find(pin->name()); it != rct.end()) {
       if(rct.rct_node2bfs_order[it->second] == 0) continue; // ignore the root
       FOR_EACH_EL_RF(el, rf) {
         _stor->cap[(rct._arr_start + rct.rct_node2bfs_order[it->second]) * MAX_SPLIT_TRAN + el * MAX_TRAN + rf]
@@ -679,8 +679,7 @@ void Net::_make_flat_rct2() {
   st = _prof::timestamp();
 
   size_t num_nodes = rct._num_nodes;
-  //rct.name2id.reserve(num_nodes);
-
+  
   // Step 2: build map std::string->int
   int cnt = 0;
   for(const auto& [node1, node2, cap] : _spef_net->caps) {
@@ -688,7 +687,7 @@ void Net::_make_flat_rct2() {
 
     // ground capacitance
     if(node2.empty()) {
-      rct.name2id[node1] = cnt;
+      rct.insert(node1, cnt); 
       ++cnt;
     }
     else {
@@ -697,7 +696,7 @@ void Net::_make_flat_rct2() {
     }
     // TODO: coupling capacitance
   }
-  rct.name2id.rehash(num_nodes);
+  rct._name2id.rehash(num_nodes);
 
   // Step 3: Build graph
 
@@ -705,23 +704,25 @@ void Net::_make_flat_rct2() {
   for(const auto& [node1, node2, res] : _spef_net->ress) {
     auto& edge = _stor->rct_edges[edge_cnt];
     _stor->rct_edges_res[edge_cnt] = res; 
-    if(auto const &it = rct.name2id.find(node1); it != rct.name2id.end()) {
+    if(auto const &it = rct.find(node1); it != rct.end()) {
       edge.s = it->second;
     }
     else {
-      rct.name2id[node1] = edge.s = cnt++;
+      edge.s = cnt++;
+      rct.insert(node1, edge.s); 
     }
-    if(auto const &it = rct.name2id.find(node2); it != rct.name2id.end()) {
+    if(auto const &it = rct.find(node2); it != rct.end()) {
       edge.t = it->second;
     }
     else {
-      rct.name2id[node2] = edge.t = cnt++;
+      edge.t = cnt++;
+      rct.insert(node2, edge.t);
     }
     ++edge_cnt;
   }
 
   int root;
-  if(auto it = rct.name2id.find(_root->name()); it == rct.name2id.end()) {
+  if(auto it = rct.find(_root->name()); it == rct.end()) {
     OT_LOGE("flat rct make cannot locate root in spef tree");
     return;
   }
@@ -734,14 +735,14 @@ void Net::_make_flat_rct2() {
 
   for(const auto& [node1, node2, cap] : _spef_net->caps) {
     (void)node2;
-    int pos = rct.name2id[node1];
+    int pos = rct.find(node1)->second; 
     for(int i = 0; i < MAX_SPLIT_TRAN; ++i) {
       _stor->rct_nodes_cap[(rct._arr_start + pos) * MAX_SPLIT_TRAN + i] = cap;
     }
   }
 
   for(auto pin : _pins) {
-    if(auto it = rct.name2id.find(pin->name()); it != rct.name2id.end()) {
+    if(auto it = rct.find(pin->name()); it != rct.end()) {
       if(it->second == root) continue; // ignore the root
       FOR_EACH_EL_RF(el, rf) {
         _stor->rct_nodes_cap[(rct._arr_start + it->second) * MAX_SPLIT_TRAN + el * MAX_TRAN + rf]
@@ -979,13 +980,13 @@ std::optional<float> Net::_slew(Split m, Tran t, float si, Pin& to) const {
       else return std::nullopt;
     },
     [&] (const FlatRct& rct) -> std::optional<float> {
-      if(auto it = rct.name2id.find(to._name); it != rct.name2id.end()) {
+      if(auto it = rct.find(to._name); it != rct.end()) {
         return rct.slew(it->second, m, t, si);
       }
       else return std::nullopt;
     },
     [&] (const FlatRct2& rct) -> std::optional<float> {
-      if(auto it = rct.name2id.find(to._name); it != rct.name2id.end()) {
+      if(auto it = rct.find(to._name); it != rct.end()) {
         return rct.slew(it->second, m, t, si);
       }
       else return std::nullopt;
@@ -1012,7 +1013,7 @@ std::optional<float> Net::_delay(Split m, Tran t, Pin& to) const {
     },
     [&] (const FlatRct& rct) -> std::optional<float> {
       
-      if(auto it = rct.name2id.find(to._name); it != rct.name2id.end()) {
+      if(auto it = rct.find(to._name); it != rct.end()) {
         //if(m == 0 && t == 0) OT_LOGI("delay ", to._name, " ", rct._stor->delay[(rct.arr_start + rct.rct_node2bfs_order[it->second]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t]);
         return rct.delay(it->second, m, t);
       }
@@ -1020,7 +1021,7 @@ std::optional<float> Net::_delay(Split m, Tran t, Pin& to) const {
     },
     [&] (const FlatRct2& rct) -> std::optional<float> {
       
-      if(auto it = rct.name2id.find(to._name); it != rct.name2id.end()) {
+      if(auto it = rct.find(to._name); it != rct.end()) {
         //if(m == 0 && t == 0) OT_LOGI("delay ", to._name, " ", rct._stor->delay[(rct.arr_start + rct.rct_node2bfs_order[it->second]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t]);
         return rct.delay(it->second, m, t);
       }

@@ -169,7 +169,6 @@ class FlatRct {
   friend class Timer;
   
   FlatRctStorage *_stor;
-  std::unordered_map<std::string, int> name2id;
   //std::vector<int> bfs_order_map;
   std::vector<int> rct_node2bfs_order;
   size_t _num_nodes;
@@ -180,9 +179,25 @@ public:
   float slew(int, Split, Tran, float) const;
   float delay(int, Split, Tran) const;
 
+  /// @brief Accessors for _name2id 
+  std::unordered_map<std::string, int>::const_iterator find(std::string const& name) const {
+      return _name2id.find(name); 
+  }
+  std::pair<std::unordered_map<std::string, int>::iterator, bool> insert(std::string const& name, int id) {
+      return _name2id.emplace(name, id); 
+  }
+  std::unordered_map<std::string, int>::const_iterator end() const {
+      return _name2id.end();
+  }
+  std::unordered_map<std::string, int>::iterator end() {
+      return _name2id.end();
+  }
+
 private:
   void _scale_capacitance(float);
   void _scale_resistance(float);
+
+  std::unordered_map<std::string, int> _name2id; ///< do not directly use it 
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -217,7 +232,6 @@ class FlatRct2 {
   friend class Timer;
   
   FlatRct2Storage *_stor;
-  std::unordered_map<std::string, int> name2id;
   size_t _num_nodes;
   int _arr_start;
   int _edge_start; 
@@ -228,9 +242,29 @@ public:
   float slew(int, Split, Tran, float) const;
   float delay(int, Split, Tran) const;
 
+  /// @brief Accessor for _name2id, use reverse name instead of the original name 
+  std::unordered_map<std::string, int>::const_iterator find(std::string const& name) const {
+      std::string reverse_name(name.rbegin(), name.rend()); 
+      return _name2id.find(reverse_name); 
+  }
+  std::pair<std::unordered_map<std::string, int>::iterator, bool> insert(std::string const& name, int id) {
+      std::string reverse_name(name.rbegin(), name.rend()); 
+      return _name2id.emplace(reverse_name, id); 
+  }
+  std::unordered_map<std::string, int>::const_iterator end() const {
+      return _name2id.end();
+  }
+  std::unordered_map<std::string, int>::iterator end() {
+      return _name2id.end();
+  }
+
 private:
   void _scale_capacitance(float);
   void _scale_resistance(float);
+
+  std::unordered_map<std::string, int> _name2id; ///< Do not directly use it, because the names are stored differently. 
+                                                ///< Consider the naming convention, it is better to use the reverse name 
+                                                ///< for faster comparison 
 };
 
 // ------------------------------------------------------------------------------------------------
