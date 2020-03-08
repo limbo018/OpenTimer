@@ -678,6 +678,7 @@ void Net::_make_flat_rct2() {
 
   st = _prof::timestamp();
 
+  size_t num_nodes = rct._num_nodes;
   //rct.name2id.reserve(num_nodes);
 
   // Step 2: build map std::string->int
@@ -696,6 +697,7 @@ void Net::_make_flat_rct2() {
     }
     // TODO: coupling capacitance
   }
+  rct.name2id.rehash(num_nodes);
 
   // Step 3: Build graph
 

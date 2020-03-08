@@ -991,7 +991,7 @@ void Timer::_build_rc_timing_tasks() {
     // Step 2: Create task for FlatRct make
     auto pf_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
         p.second._update_rc_timing_flat();
-      });
+      }, 4);
 
     // Step 3: Create task for computing FlatRctStorage
     auto task_compute = _taskflow.emplace([this] () {
