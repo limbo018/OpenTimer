@@ -225,39 +225,6 @@ __global__ void compute_net_bfs(RctEdgeArrayCUDA data_gpu) {
         } 
         __syncthreads(); 
 
-#if 1
-        // debug 
-        for (int u = 0; u < num_nodes; ++u) {
-            if (distances[u] > num_nodes - 1) {
-                printf("net_id = %d, num_nodes = %d, num_edges = %d, nodes_offset = %d, edges_offset = %d, root = %d, level = %d, d = %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, \n(%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d), (%d, %d)\n", 
-                        net_id, num_nodes, num_edges, nodes_offset, edges_offset, root, level, 
-                        (num_nodes> 0)? distances[0] : -1, 
-                        (num_nodes> 1)? distances[1] : -1, 
-                        (num_nodes> 2)? distances[2] : -1, 
-                        (num_nodes> 3)? distances[3] : -1, 
-                        (num_nodes> 4)? distances[4] : -1, 
-                        (num_nodes> 5)? distances[5] : -1, 
-                        (num_nodes> 6)? distances[6] : -1, 
-                        (num_nodes> 7)? distances[7] : -1, 
-                        (num_nodes> 8)? distances[8] : -1, 
-                        (num_nodes> 9)? distances[9] : -1, 
-                        (num_edges > 0)? edges[0].s : -1, (num_edges > 0)? edges[0].t : -1, 
-                        (num_edges > 1)? edges[1].s : -1, (num_edges > 1)? edges[1].t : -1, 
-                        (num_edges > 2)? edges[2].s : -1, (num_edges > 2)? edges[2].t : -1, 
-                        (num_edges > 3)? edges[3].s : -1, (num_edges > 3)? edges[3].t : -1, 
-                        (num_edges > 4)? edges[4].s : -1, (num_edges > 4)? edges[4].t : -1,
-                        (num_edges > 5)? edges[5].s : -1, (num_edges > 5)? edges[5].t : -1, 
-                        (num_edges > 6)? edges[6].s : -1, (num_edges > 6)? edges[6].t : -1, 
-                        (num_edges > 7)? edges[7].s : -1, (num_edges > 7)? edges[7].t : -1, 
-                        (num_edges > 8)? edges[8].s : -1, (num_edges > 8)? edges[8].t : -1, 
-                        (num_edges > 9)? edges[9].s : -1, (num_edges > 9)? edges[9].t : -1
-                        ); 
-                assert(0);
-            }
-        }
-        __syncthreads();
-#endif
-    
         // argsort nodes according to distances to root 
         block_couting_sort<BlockDim>(distances, sort_counts, orders, nullptr, num_nodes, 0, num_nodes-1, false); 
         
