@@ -360,33 +360,6 @@ void FlatRct::_scale_resistance(float s) {
 
 // ------------------------------------------------------------------------------------------------
 
-void FlatRct2Storage::_bfs_cuda() {
-  if(!rct_nodes_start.size()) {
-    OT_LOGE("rct storage update timing: not initialized");
-    return;
-  }
-
-  // BFS on cuda 
-
-  _prof::setup_timer("_bfs_cuda :: data preparation");
-  RctEdgeArrayCUDA rct_edges_cuda; 
-  rct_edges_cuda.num_nets = rct_nodes_start.size() - 1; 
-  rct_edges_cuda.total_num_nodes = total_num_nodes; 
-  rct_edges_cuda.total_num_edges = total_num_edges; 
-#define COPY_PDATA(arr) rct_edges_cuda.arr = arr.data();
-  COPY_PDATA(rct_edges); 
-  COPY_PDATA(rct_roots); 
-  COPY_PDATA(rct_nodes_start); 
-  COPY_PDATA(rct_node2bfs_order); 
-  COPY_PDATA(rct_pid); 
-#undef COPY_PDATA
-  _prof::stop_timer("_bfs_cuda :: data preparation");
-
-  _prof::setup_timer("_bfs_cuda :: rct_bfs_cuda");
-  rct_bfs_cuda(rct_edges_cuda); 
-  _prof::stop_timer("_bfs_cuda :: rct_bfs_cuda");
-}
-
 // flat rct calculation on cpu
 void FlatRct2Storage::_update_timing_cuda() {
   if(!rct_nodes_start.size()) {
@@ -401,14 +374,18 @@ void FlatRct2Storage::_update_timing_cuda() {
   impulse.resize(total_num_nodes * 4);
   // has: total_num_nodes, rct_nodes_start, rct_pid, pres, cap, load, delay, ldelay, impulse
 
-  RctCUDA rct_cuda;
-  rct_cuda.num_nets = rct_nodes_start.size() - 1;
-  rct_cuda.total_num_nodes = total_num_nodes;
+  RctEdgeArrayCUDA rct_cuda; 
+  rct_cuda.num_nets = rct_nodes_start.size() - 1; 
+  rct_cuda.total_num_nodes = total_num_nodes; 
+  rct_cuda.total_num_edges = total_num_edges; 
 #define COPY_PDATA(arr) rct_cuda.arr = arr.data();
-  COPY_PDATA(rct_nodes_start);
-  COPY_PDATA(rct_pid);
-  COPY_PDATA(pres);
-  COPY_PDATA(cap);
+  COPY_PDATA(rct_edges); 
+  COPY_PDATA(rct_roots); 
+  COPY_PDATA(rct_nodes_start); 
+  COPY_PDATA(rct_node2bfs_order); 
+  COPY_PDATA(rct_edges_res); 
+  COPY_PDATA(rct_nodes_cap);
+  COPY_PDATA(rct_pid); 
   COPY_PDATA(load);
   COPY_PDATA(delay);
   COPY_PDATA(ldelay);
@@ -419,7 +396,7 @@ void FlatRct2Storage::_update_timing_cuda() {
 
   
   _prof::setup_timer("_update_timing_cuda :: rct_compute_cuda");
-  rct_compute_cuda(rct_cuda);
+  rct_bfs_and_compute_cuda(rct_cuda); 
   _prof::stop_timer("_update_timing_cuda :: rct_compute_cuda");
 }
 
@@ -437,14 +414,14 @@ float FlatRct2::delay(int id, Split m, Tran t) const {
 void FlatRct2::_scale_capacitance(float s) {
   for(size_t i = 0; i < _num_nodes; ++i) {
     for(int j = 0; j < MAX_SPLIT_TRAN; ++j) {
-      _stor->cap[(_arr_start + i) * MAX_SPLIT_TRAN + j] *= s;
+      _stor->rct_nodes_cap[(_arr_start + i) * MAX_SPLIT_TRAN + j] *= s;
     }
   }
 }
 
 void FlatRct2::_scale_resistance(float s) {
-  for(size_t i = 0; i < _num_nodes; ++i) { // i start from 1 also work?
-    _stor->pres[_arr_start + i] *= s;
+  for(size_t i = 0; i < _num_nodes - 1; ++i) { 
+    _stor->rct_edges_res[_arr_start + i] *= s;
   }
 }
 
@@ -690,7 +667,7 @@ void Net::_make_flat_rct() {
 void Net::_make_flat_rct2() {
   if(!_spef_net) return;
 
-  _prof::intms st, amap_graph;
+  _prof::intms st, amap_graph, acap;
 
   // Step 1: refer to the flat rctree object created during init
   auto prct = std::get_if<FlatRct2>(&_rct);
@@ -739,11 +716,6 @@ void Net::_make_flat_rct2() {
       rct.name2id[node2] = edge.t = cnt++;
     }
     ++edge_cnt;
-
-    // debug 
-    if (rct._arr_start == 2) {
-        printf("edge (%s, %s) (%d, %d)\n", node1.c_str(), node2.c_str(), edge.s, edge.t);
-    }
   }
 
   int root;
@@ -754,14 +726,36 @@ void Net::_make_flat_rct2() {
   else root = it->second;
   _stor->rct_roots[rct._net_id] = root; 
 
-  // debug 
-  if (rct._arr_start == 2) {
-      printf("root = %d\n", root);
-  }
   amap_graph = _prof::timestamp();
+
+  // Step 4: set cap 
+
+  for(const auto& [node1, node2, cap] : _spef_net->caps) {
+    (void)node2;
+    int pos = rct.name2id[node1];
+    for(int i = 0; i < MAX_SPLIT_TRAN; ++i) {
+      _stor->rct_nodes_cap[(rct._arr_start + pos) * MAX_SPLIT_TRAN + i] = cap;
+    }
+  }
+
+  for(auto pin : _pins) {
+    if(auto it = rct.name2id.find(pin->name()); it != rct.name2id.end()) {
+      if(it->second == root) continue; // ignore the root
+      FOR_EACH_EL_RF(el, rf) {
+        _stor->rct_nodes_cap[(rct._arr_start + it->second) * MAX_SPLIT_TRAN + el * MAX_TRAN + rf]
+          += pin->cap(el, rf);
+      }
+    }
+    else {
+      OT_LOGE("pin ", pin->name(), " not found in rctree ", _name);
+    }
+  }
+
+  acap = _prof::timestamp();
 
   // update task timers
   _prof::t_map += amap_graph - st;
+  _prof::t_cap += acap - amap_graph; 
 
   //_spef_net.reset();
   
@@ -830,9 +824,6 @@ void Net::_update_rc_timing_flat() {
     }
     }, _rct);
   
-}
-
-void Net::_update_cap_flat() {
   std::visit(Functors{
     [&] (EmptyRct& rct) {
       FOR_EACH_EL_RF(el, rf) {
@@ -848,42 +839,6 @@ void Net::_update_cap_flat() {
     [&] (FlatRct &rct) {
     },
     [&] (FlatRct2 &rct) {
-      auto start = _prof::timestamp();
-      size_t num_nodes = rct._num_nodes; 
-      // res according to bfs order 
-      for (size_t i = 0; i < num_nodes - 1; ++i) {
-        auto const& edge = rct._stor->rct_edges[rct._edge_start + i]; 
-        auto res = rct._stor->rct_edges_res[rct._edge_start + i];
-        rct._stor->pres[rct._arr_start + rct._stor->rct_node2bfs_order[rct._arr_start + edge.t]] = res; 
-      }
-
-      // set cap according to bfs order
-      for(size_t i = 0; i < num_nodes * 4; ++i) {
-        rct._stor->cap[rct._arr_start * 4 + i] = 0;
-      }
-
-      for(const auto& [node1, node2, cap] : _spef_net->caps) {
-        (void)node2;
-        int pos = rct._stor->rct_node2bfs_order[rct._arr_start + rct.name2id[node1]];
-        for(int i = 0; i < MAX_SPLIT_TRAN; ++i) {
-          rct._stor->cap[(rct._arr_start + pos) * MAX_SPLIT_TRAN + i] = cap;
-        }
-      }
-
-      for(auto pin : _pins) {
-        if(auto it = rct.name2id.find(pin->name()); it != rct.name2id.end()) {
-          if(rct._stor->rct_node2bfs_order[rct._arr_start + it->second] == 0) continue; // ignore the root
-          FOR_EACH_EL_RF(el, rf) {
-            rct._stor->cap[(rct._arr_start + rct._stor->rct_node2bfs_order[rct._arr_start + it->second]) * MAX_SPLIT_TRAN + el * MAX_TRAN + rf]
-              += pin->cap(el, rf);
-          }
-        }
-        else {
-          OT_LOGE("pin ", pin->name(), " not found in rctree ", _name);
-        }
-      }
-      auto stop = _prof::timestamp(); 
-      _prof::t_cap += stop - start; 
     }
     }, _rct);
   

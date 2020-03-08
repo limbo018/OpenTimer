@@ -5,53 +5,54 @@
 #include <ot/cuda/utils.cuh>
 #include <ot/timer/_prof.hpp>
 
-//const MAX_SPLIT_TRAN = 4;
+#define MAX_SPLIT_TRAN 4 
 const int chunk = 64;
 
-__global__ void compute_net_timing(RctCUDA rct) {
+template <typename RctCUDAType>
+__global__ void compute_net_timing(RctCUDAType rct) {
   unsigned int net_id = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int el_rf_offset = threadIdx.y;
   if(net_id >= rct.num_nets) return;
   
   int st = rct.rct_nodes_start[net_id], ed = rct.rct_nodes_start[net_id + 1];
-  int st4 = st * 4 + el_rf_offset, ed4 = ed * 4 + el_rf_offset;
-  int rst4 = ed4 - 4, red4 = st4;   // red4 = st4, jumping over the root
+  int st4 = st * MAX_SPLIT_TRAN + el_rf_offset, ed4 = ed * MAX_SPLIT_TRAN + el_rf_offset;
+  int rst4 = ed4 - MAX_SPLIT_TRAN, red4 = st4;   // red4 = st4, jumping over the root
 
   // update load from cap
   // and init array
-  for(int i = st4; i < ed4; i += 4) {
+  for(int i = st4; i < ed4; i += MAX_SPLIT_TRAN) {
     rct.load[i] = rct.cap[i];
     rct.delay[i] = rct.ldelay[i] = rct.impulse[i] = 0;
   }
 
   // update load from downstream to upstream
-  for(int i = rst4, j = ed - 1; i > red4; i -= 4, --j) {
-    int prev = i - rct.rct_pid[j] * 4;
+  for(int i = rst4, j = ed - 1; i > red4; i -= MAX_SPLIT_TRAN, --j) {
+    int prev = i - rct.rct_pid[j] * MAX_SPLIT_TRAN;
     rct.load[prev] += rct.load[i];
   }
 
   // update delay from upstream to downstream
-  for(int i = st4 + 4, j = st + 1; i < ed4; i += 4, ++j) {
-    int prev = i - rct.rct_pid[j] * 4;
+  for(int i = st4 + MAX_SPLIT_TRAN, j = st + 1; i < ed4; i += MAX_SPLIT_TRAN, ++j) {
+    int prev = i - rct.rct_pid[j] * MAX_SPLIT_TRAN;
     rct.delay[i] += rct.delay[prev] + rct.load[i] * rct.pres[j];
   }
 
   // update cap*delay from downstream to upstream
-  for(int i = rst4, j = ed - 1; i > red4; i -= 4, --j) {
-    int prev = i - rct.rct_pid[j] * 4;
+  for(int i = rst4, j = ed - 1; i > red4; i -= MAX_SPLIT_TRAN, --j) {
+    int prev = i - rct.rct_pid[j] * MAX_SPLIT_TRAN;
     rct.ldelay[i] += rct.cap[i] * rct.delay[i];
     rct.ldelay[prev] += rct.ldelay[i];
   }
   rct.ldelay[st4] += rct.cap[st4] * rct.delay[st4];
 
   // update beta from upstream to downstream
-  for(int i = st4 + 4, j = st + 1; i < ed4; i += 4, ++j) {
-    int prev = i - rct.rct_pid[j] * 4;
+  for(int i = st4 + MAX_SPLIT_TRAN, j = st + 1; i < ed4; i += MAX_SPLIT_TRAN, ++j) {
+    int prev = i - rct.rct_pid[j] * MAX_SPLIT_TRAN;
     rct.impulse[i] += rct.impulse[prev] + rct.ldelay[i] * rct.pres[j];
   }
 
   // beta -> impulse
-  for(int i = st4; i < ed4; i += 4) {
+  for(int i = st4; i < ed4; i += MAX_SPLIT_TRAN) {
     float t = rct.delay[i];
     rct.impulse[i] = 2 * rct.impulse[i] - t * t;
   }
@@ -64,10 +65,10 @@ RctCUDA copy_cpu_to_gpu(const RctCUDA& data_cpu) {
 #define COPY_DATA(arr, sz) allocateCopyCUDA(data_gpu.arr, data_cpu.arr, sz)
   COPY_DATA(rct_pid, data_cpu.total_num_nodes);
   COPY_DATA(pres, data_cpu.total_num_nodes);
-  COPY_DATA(cap, data_cpu.total_num_nodes * 4);
+  COPY_DATA(cap, data_cpu.total_num_nodes * MAX_SPLIT_TRAN);
   COPY_DATA(rct_nodes_start, data_cpu.num_nets + 1);
 #undef COPY_DATA
-#define MALLOC_RESULTS(arr) allocateCUDA(data_gpu.arr, data_cpu.total_num_nodes * 4, float)
+#define MALLOC_RESULTS(arr) allocateCUDA(data_gpu.arr, data_cpu.total_num_nodes * MAX_SPLIT_TRAN, float)
   MALLOC_RESULTS(load);
   MALLOC_RESULTS(delay);
   MALLOC_RESULTS(ldelay);
@@ -77,7 +78,7 @@ RctCUDA copy_cpu_to_gpu(const RctCUDA& data_cpu) {
 }
 
 void copy_gpu_to_cpu(const RctCUDA data_gpu, RctCUDA data_cpu) {
-#define COPY_RESULTS(arr) memcpyDeviceHostCUDA(data_cpu.arr, data_gpu.arr, data_gpu.total_num_nodes * 4)
+#define COPY_RESULTS(arr) memcpyDeviceHostCUDA(data_cpu.arr, data_gpu.arr, data_gpu.total_num_nodes * MAX_SPLIT_TRAN)
   COPY_RESULTS(load);
   COPY_RESULTS(delay);
   COPY_RESULTS(ldelay);
@@ -106,7 +107,7 @@ void rct_compute_cuda(RctCUDA data_cpu) {
   _prof::stop_timer("rct_compute_cuda__copy_c2g");
   _prof::setup_timer("rct_compute_cuda__compute");
   compute_net_timing<<<(data_cpu.num_nets + chunk - 1) / chunk,
-    dim3(chunk, 4)>>>(data_gpu);
+    dim3(chunk, MAX_SPLIT_TRAN)>>>(data_gpu);
   checkCUDA(cudaDeviceSynchronize());
   _prof::stop_timer("rct_compute_cuda__compute");
   _prof::setup_timer("rct_compute_cuda__copy_g2c");
@@ -252,12 +253,24 @@ RctEdgeArrayCUDA copy_cpu_to_gpu(const RctEdgeArrayCUDA& data_cpu) {
   COPY_DATA(rct_edges, data_cpu.total_num_edges);
   COPY_DATA(rct_roots, data_cpu.num_nets);
   COPY_DATA(rct_nodes_start, data_cpu.num_nets + 1);
+  COPY_DATA(rct_edges_res, data_cpu.total_num_edges); 
+  COPY_DATA(rct_nodes_cap, data_cpu.total_num_nodes * MAX_SPLIT_TRAN); 
 #undef COPY_DATA
 #define MALLOC_RESULTS(arr) allocateCUDA(data_gpu.arr, data_cpu.total_num_nodes, int)
   MALLOC_RESULTS(rct_distances);
   MALLOC_RESULTS(rct_sort_counts); 
   MALLOC_RESULTS(rct_node2bfs_order); 
   MALLOC_RESULTS(rct_pid); 
+#undef MALLOC_RESULTS
+#define MALLOC_RESULTS(arr, sz) allocateCUDA(data_gpu.arr, sz, float)
+  MALLOC_RESULTS(pres, data_cpu.total_num_nodes); 
+#undef MALLOC_RESULTS
+#define MALLOC_RESULTS(arr) allocateCUDA(data_gpu.arr, data_cpu.total_num_nodes * MAX_SPLIT_TRAN, float)
+  MALLOC_RESULTS(cap); 
+  MALLOC_RESULTS(load);
+  MALLOC_RESULTS(delay);
+  MALLOC_RESULTS(ldelay);
+  MALLOC_RESULTS(impulse);
 #undef MALLOC_RESULTS
   return data_gpu;
 }
@@ -267,6 +280,12 @@ void copy_gpu_to_cpu(const RctEdgeArrayCUDA data_gpu, RctEdgeArrayCUDA data_cpu)
   COPY_RESULTS(rct_edges, data_gpu.total_num_edges); 
   COPY_RESULTS(rct_node2bfs_order, data_gpu.total_num_nodes);
   COPY_RESULTS(rct_pid, data_gpu.total_num_nodes);
+#undef COPY_RESULTS
+#define COPY_RESULTS(arr) memcpyDeviceHostCUDA(data_cpu.arr, data_gpu.arr, data_gpu.total_num_nodes * MAX_SPLIT_TRAN)
+  COPY_RESULTS(load);
+  COPY_RESULTS(delay);
+  COPY_RESULTS(ldelay);
+  COPY_RESULTS(impulse);
 #undef COPY_RESULTS
 }
 
@@ -279,23 +298,100 @@ void free_gpu(RctEdgeArrayCUDA data_gpu) {
   FREEG(rct_node2bfs_order); 
   FREEG(rct_nodes_start);
   FREEG(rct_pid);
+  FREEG(rct_edges_res); 
+  FREEG(rct_nodes_cap);
+  FREEG(pres); 
+  FREEG(cap); 
+  FREEG(load); 
+  FREEG(delay); 
+  FREEG(ldelay); 
+  FREEG(impulse);
 #undef FREEG
 }
 
-void rct_bfs_cuda(RctEdgeArrayCUDA data_cpu) {
-  _prof::setup_timer("rct_bfs_cuda__copy_c2g");
+/// @brief Prepare resistance and capacitance by copying from rct_edges_res and rct_nodes_cap. 
+/// Also convert from the original order to BFS order. 
+__global__ void prepare_res_cap(RctEdgeArrayCUDA data_gpu) {
+    const int net_id = blockIdx.x;
+    const int tid = threadIdx.x; 
+
+    __shared__ int nodes_offset; 
+    __shared__ int edges_offset; 
+    __shared__ int num_edges; 
+    __shared__ int num_nodes; 
+    __shared__ RctEdgeCUDA* edges; // modified inplace from undirected edges to directed according to BFS order 
+    __shared__ int* orders; 
+    __shared__ float* edges_res; // edge resistance, in original order 
+    __shared__ float* nodes_cap; // node capacitance, in original order 
+    __shared__ float* pres; // resistance to sink 
+    __shared__ float* cap; 
+
+    if (net_id < data_gpu.num_nets) {
+        if (tid == 0) {
+            nodes_offset = data_gpu.rct_nodes_start[net_id]; 
+            edges_offset = nodes_offset - net_id; 
+            num_nodes = data_gpu.rct_nodes_start[net_id + 1] - nodes_offset; 
+            num_edges = num_nodes - 1; 
+            edges = data_gpu.rct_edges + edges_offset; 
+            orders = data_gpu.rct_node2bfs_order + nodes_offset; 
+            edges_res = data_gpu.rct_edges_res + edges_offset; 
+            nodes_cap = data_gpu.rct_nodes_cap + nodes_offset * MAX_SPLIT_TRAN; 
+            pres = data_gpu.pres + nodes_offset; 
+            cap = data_gpu.cap + nodes_offset * MAX_SPLIT_TRAN; 
+        }
+        __syncthreads();
+
+        // set resistance 
+        for (int e = tid; e < num_edges; e += blockDim.x) {
+            auto const& edge = edges[e]; 
+            pres[orders[edge.t]] = edges_res[e];
+        }
+        // set capacitance 
+        for (int u = tid; u < num_nodes; u += blockDim.x) {
+            int offset = orders[u] * MAX_SPLIT_TRAN;
+            int offset_u = u * MAX_SPLIT_TRAN; 
+            #pragma unroll
+            for (int i = 0; i < MAX_SPLIT_TRAN; ++i) {
+                cap[offset + i] = nodes_cap[offset_u + i]; 
+            }
+        }
+    }
+}
+
+void rct_bfs_and_compute_cuda(RctEdgeArrayCUDA data_cpu) {
+  // copy data 
+  _prof::setup_timer("rct_bfs_and_compute_cuda__copy_c2g");
   RctEdgeArrayCUDA data_gpu = copy_cpu_to_gpu(data_cpu); 
   checkCUDA(cudaDeviceSynchronize());
-  _prof::stop_timer("rct_bfs_cuda__copy_c2g");
-  _prof::setup_timer("rct_bfs_cuda__compute");
+  _prof::stop_timer("rct_bfs_and_compute_cuda__copy_c2g");
+
+  // BFS 
+  _prof::setup_timer("rct_bfs_and_compute_cuda__bfs");
   // the threads for one net 
   constexpr int threads = 128; 
   compute_net_bfs<threads><<<data_gpu.num_nets, threads>>>(data_gpu); 
   checkCUDA(cudaDeviceSynchronize());
-  _prof::stop_timer("rct_bfs_cuda__compute");
-  _prof::setup_timer("rct_bfs_cuda__copy_g2c");
+  _prof::stop_timer("rct_bfs_and_compute_cuda__bfs");
+
+  // reorder and copy resistance and capacitance
+  _prof::setup_timer("rct_bfs_and_compute_cuda__res_cap");
+  checkCUDA(cudaMemset(data_gpu.pres, 0, sizeof(float) * data_gpu.total_num_nodes));
+  checkCUDA(cudaMemset(data_gpu.cap, 0, sizeof(float) * data_gpu.total_num_nodes * MAX_SPLIT_TRAN));
+  prepare_res_cap<<<data_gpu.num_nets, threads>>>(data_gpu); 
+  checkCUDA(cudaDeviceSynchronize());
+  _prof::stop_timer("rct_bfs_and_compute_cuda__res_cap");
+
+  // compute RC delay 
+  _prof::setup_timer("rct_bfs_and_compute_cuda__compute");
+  compute_net_timing<<<(data_cpu.num_nets + chunk - 1) / chunk,
+    dim3(chunk, MAX_SPLIT_TRAN)>>>(data_gpu);
+  checkCUDA(cudaDeviceSynchronize());
+  _prof::stop_timer("rct_bfs_and_compute_cuda__compute");
+
+  // copy back 
+  _prof::setup_timer("rct_bfs_and_compute_cuda__copy_g2c");
   copy_gpu_to_cpu(data_gpu, data_cpu); 
   checkCUDA(cudaDeviceSynchronize());
   free_gpu(data_gpu); 
-  _prof::stop_timer("rct_bfs_cuda__copy_g2c");
+  _prof::stop_timer("rct_bfs_and_compute_cuda__copy_g2c");
 }

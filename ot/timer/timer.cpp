@@ -925,7 +925,7 @@ void Timer::_build_rc_timing_tasks() {
   _prof::setup_timer("_build_rc_timing_tasks");
   // Emplace all rc timing tasks
 
-  constexpr int alg = 0; 
+  constexpr int alg = 1; 
   if(_has_state(CUDA_ENABLED) && alg == 0) {
     // Step 1: Allocate the space for FlatRct's
     auto& stor = _flat_rct_stor.emplace<FlatRctStorage>();
@@ -949,7 +949,6 @@ void Timer::_build_rc_timing_tasks() {
     // Step 2: Create task for FlatRct make
     auto pf_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
         p.second._update_rc_timing_flat();
-        p.second._update_cap_flat();
       });
 
     // Step 3: Create task for computing FlatRctStorage
@@ -983,36 +982,23 @@ void Timer::_build_rc_timing_tasks() {
     stor.total_num_nodes = total_num_nodes;
     stor.total_num_edges = total_num_edges; 
     stor.rct_edges.resize(total_num_edges); 
-    stor.rct_edges_res.resize(total_num_edges); 
+    stor.rct_edges_res.assign(total_num_edges, 0); 
+    stor.rct_nodes_cap.assign(total_num_nodes*MAX_SPLIT_TRAN, 0); 
     stor.rct_roots.resize(_nets.size());
     stor.rct_node2bfs_order.resize(total_num_nodes);
     stor.rct_pid.resize(total_num_nodes);
-    stor.pres.resize(total_num_nodes);
-    stor.cap.resize(total_num_nodes * MAX_SPLIT_TRAN);
 
     // Step 2: Create task for FlatRct make
     auto pf_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
         p.second._update_rc_timing_flat();
       });
 
-    // Step 3: Create task for BFS on CUDA 
-    auto task_bfs = _taskflow.emplace([this] () {
-        std::get_if<FlatRct2Storage>(&_flat_rct_stor)->_bfs_cuda();
-      });
-
-    // Step 4: Create task for FlatRct2 
-    auto cap_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
-        p.second._update_cap_flat();
-      });
-
-    // Step 5: Create task for computing FlatRctStorage
+    // Step 3: Create task for computing FlatRctStorage
     auto task_compute = _taskflow.emplace([this] () {
         std::get_if<FlatRct2Storage>(&_flat_rct_stor)->_update_timing_cuda();
       });
 
-    pf_pair.second.precede(task_bfs);
-    task_bfs.precede(cap_pair.first); 
-    cap_pair.second.precede(task_compute);
+    pf_pair.second.precede(task_compute);
     //task_init_omp.precede(task_compute);
   }
   else {

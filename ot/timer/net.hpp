@@ -196,17 +196,17 @@ struct FlatRct2Storage {
   size_t total_num_nodes;
   size_t total_num_edges; 
   std::vector<int> rct_nodes_start; ///< length of (num_nets + 1); record the offset of each net  
-  std::vector<RctEdgeCUDA> rct_edges; ///< length of total_num_edges; 
-  std::vector<float> rct_edges_res; ///< length of total_num_edges; edge resistance 
+  std::vector<RctEdgeCUDA> rct_edges; ///< length of total_num_edges; original undirected, will be directed after BFS 
   std::vector<int> rct_roots; ///< length of num_nets, root of each rc tree   
   std::vector<int> rct_pid; ///< length of total_num_nodes; record how far away its parent locates. 
                         ///< For example, the parent of node i is i - rct_pid[i]; the array itself is in BFS order. 
   std::vector<int> rct_node2bfs_order; ///< length of total_num_nodes; given a node, get its BFS order 
-  std::vector<float> pres, cap;
+
+  std::vector<float> rct_edges_res; ///< length of total_num_edges; edge resistance; in original order  
+  std::vector<float> rct_nodes_cap; ///< length of total_num_nodes; node capacitance; in original order 
 
   std::vector<float> load, delay, ldelay, impulse;
 
-  void _bfs_cuda();
   void _update_timing_cuda();
 };
 
@@ -277,7 +277,6 @@ class Net {
     
     void _update_rc_timing();
     void _update_rc_timing_flat();
-    void _update_cap_flat();
     void _attach(spef::Net&&);
     void _make_rct();
     //void _make_rct(const spef::Net&);
