@@ -70,8 +70,13 @@ class Arc {
     void _insert_state(int);
     void _remove_state(int = 0);
 
-    bool _has_state(int) const;
-}; 
+    inline bool _has_state(int) const;
+};
+
+// Function _has_state
+inline bool Arc::_has_state(int s) const {
+  return _state & s;
+}
 
 // Function: idx
 inline size_t Arc::idx() const {

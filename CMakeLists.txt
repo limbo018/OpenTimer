@@ -179,6 +179,7 @@ add_library(OpenTimer ${OT_CPP})
 
 set(OT_CUDA
   ot/cuda/rct.cu
+  ot/cuda/toposort.cu
 )
 
 cuda_add_library(OpenTimerCUDA STATIC ${OT_CUDA})

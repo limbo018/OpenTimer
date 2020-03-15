@@ -1,5 +1,6 @@
 #include <ot/timer/timer.hpp>
 #include <ot/timer/_prof.hpp>
+#include <ot/cuda/toposort.cuh>
 
 namespace ot {
 
@@ -949,7 +950,7 @@ void Timer::_build_rc_timing_tasks() {
     // Step 2: Create task for FlatRct make
     auto pf_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
         p.second._update_rc_timing_flat();
-      });
+      }, 16);
 
     // Step 3: Create task for computing FlatRctStorage
     auto task_compute = _taskflow.emplace([this] () {
@@ -962,7 +963,7 @@ void Timer::_build_rc_timing_tasks() {
   else {
     _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
         p.second._update_rc_timing();
-      });
+      }, 16);
   }
 
   _prof::stop_timer("_build_rc_timing_tasks");
@@ -971,6 +972,170 @@ void Timer::_build_rc_timing_tasks() {
 // Procedure: _clear_prop_tasks
 void Timer::_clear_rc_timing_tasks() {
   // no need to do anything
+}
+
+// Procedure: _build_prop_tasks_cuda
+// do GPU-based levelization, and build level-wise parallel_for tasks
+void Timer::_build_prop_tasks_cuda() {
+  _prof::setup_timer("_build_prop_tasks_cuda");
+
+  // new taskflow instance
+  // to avoid the mix of "tasks that build tasks" with "tasks".
+  tf::Taskflow _tf;
+  tf::Executor _ex;
+
+  // Step 1: init edgelist, degree and frontier arrays
+  
+  int n = _pins.size();
+  std::vector<int> out(n, 0);
+  std::vector<int> edgelist_start(n + 1, 0);
+
+  OT_LOGI("bptc I");
+
+  // count number of edges
+  _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
+      int &szi = edgelist_start[pin->_idx + 1];
+      for(auto arc: pin->_fanin) {
+        if(!arc->_has_state(Arc::LOOP_BREAKER)
+           && arc->_from._has_state(Pin::FPROP_CAND)) ++szi;
+      }
+      int &outi = out[pin->_idx];
+      for(auto arc: pin->_fanout) {
+        if(!arc->_has_state(Arc::LOOP_BREAKER)
+           && arc->_to._has_state(Pin::FPROP_CAND)) ++outi;
+      }
+    }, 32);
+  _ex.run(_tf).wait();
+  _tf.clear();
+
+  OT_LOGI("bptc II");
+  
+  // sequential partial sum
+  for(int i = 1; i <= n; ++i) edgelist_start[i] += edgelist_start[i - 1];
+
+  int num_edges = edgelist_start[n];
+  std::vector<int> edgelist(num_edges, 0);
+  
+  OT_LOGI("bptc III");
+
+  // put edges into edgelist
+  _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
+      int st = edgelist_start[pin->_idx];
+      for(auto arc: pin->_fanin) {
+        if(!arc->_has_state(Arc::LOOP_BREAKER)
+           && arc->_from._has_state(Pin::FPROP_CAND)) {
+          edgelist[st++] = arc->_from._idx;
+        }
+      }
+    }, 32);
+  _ex.run(_tf).wait();
+  _tf.clear();
+  
+  OT_LOGI("bptc IV");
+
+  // init default frontier
+  _prop_frontiers.emplace(n, 0);
+  std::vector<int> &frontiers = *_prop_frontiers;
+  std::vector<int> frontiers_ends;
+  
+  int first_size = 0;
+  for(auto pin: _fprop_cands) {
+    if(!out[pin->_idx]) frontiers[first_size++] = pin->_idx;
+  }
+  frontiers_ends.push_back(0);
+  frontiers_ends.push_back(first_size);
+  
+  OT_LOGI("bptc V");
+
+  // Step 2: call GPU function
+  toposort_compute_cuda(n, num_edges, first_size,
+                        edgelist_start.data(), edgelist.data(), out.data(),
+                        frontiers.data(), frontiers_ends);
+
+  OT_LOGI("bptc VI", "  sz ", frontiers_ends.size());
+
+  // Step 3: build_tasks
+  std::optional<tf::Task> last;
+
+  // forward
+  for(int i = (int)frontiers_ends.size() - 2; i >= 0; --i) {
+    int l = frontiers_ends[i], r = frontiers_ends[i + 1];
+    auto [S, T] = _taskflow.parallel_for(frontiers.begin() + l, frontiers.begin() + r, [this] (int idx) {
+        Pin *pin = _idx2pin[idx];
+        _fprop_slew(*pin);
+        _fprop_delay(*pin);
+        _fprop_at(*pin);
+        _fprop_test(*pin);
+      }, 32);
+    if(last) last->precede(S);
+    last = T;
+  }
+
+  OT_LOGI("bptc VII");
+
+  // backward
+  for(int i = 0; i < (int)frontiers_ends.size() - 1; ++i) {
+    int l = frontiers_ends[i], r = frontiers_ends[i + 1];
+    auto [S, T] = _taskflow.parallel_for(frontiers.begin() + l, frontiers.begin() + r, [this] (int idx) {
+        Pin *pin = _idx2pin[idx];
+        _bprop_rat(*pin);
+      }, 32);
+    if(last) last->precede(S);
+    last = T;
+  }
+  
+  OT_LOGI("bptc VIII");
+
+  // cleanup
+  auto task_cleanup = _taskflow.emplace([this] () {
+      _prop_frontiers.reset();
+    });
+  if(last) last->precede(task_cleanup);
+  
+  _prof::stop_timer("_build_prop_tasks_cuda");
+}
+
+// Procedure: _run_prop_tasks_sequential
+void Timer::_run_prop_tasks_sequential() {
+  _prof::setup_timer("_run_prop_tasks_sequential");
+  _prof::setup_timer("_run_prop_tasks_sequential__bfsseq");
+  std::vector<int> in(_pins.size(), 0);
+  std::vector<Pin*> seq;
+  seq.reserve(_fprop_cands.size());
+  for(auto to: _fprop_cands) {
+    int &tin = in[to->_idx];
+    for(auto arc: to->_fanin) {
+      if(!arc->_has_state(Arc::LOOP_BREAKER)
+         && arc->_from._has_state(Pin::FPROP_CAND)) ++tin;
+    }
+    if(!tin) seq.push_back(to);
+  }
+  for(size_t i = 0; i < seq.size(); ++i) {
+    Pin *from = seq[i];
+    for(auto arc: from->_fanout) {
+      if(!arc->_has_state(Arc::LOOP_BREAKER)
+         && arc->_to._has_state(Pin::FPROP_CAND)) {
+        if(!--in[arc->_to._idx]) seq.push_back(&(arc->_to));
+      }
+    }
+  }
+  _prof::stop_timer("_run_prop_tasks_sequential__bfsseq");
+  _prof::setup_timer("_run_prop_tasks_sequential__forward");
+  for(size_t i = 0; i < seq.size(); ++i) {
+    Pin *pin = seq[i];
+    _fprop_slew(*pin);
+    _fprop_delay(*pin);
+    _fprop_at(*pin);
+    _fprop_test(*pin);
+  }
+  _prof::stop_timer("_run_prop_tasks_sequential__forward");
+  _prof::setup_timer("_run_prop_tasks_sequential__backward");
+  for(int i = seq.size() - 1; i >= 0; --i) {
+    Pin *pin = seq[i];
+    _bprop_rat(*pin);
+  }
+  _prof::stop_timer("_run_prop_tasks_sequential__backward");
+  _prof::stop_timer("_run_prop_tasks_sequential");
 }
 
 // Procedure: _build_prop_tasks
@@ -1089,23 +1254,6 @@ void Timer::_update_timing() {
   
   _taskflow.clear();
 
-#if 0
-  // test rc timing time  (clear state after one computation)
-  _build_rc_timing_tasks();
-
-  _prof::setup_timer("_update_timing__taskflow_rctiming(test)");
-  _prof::init_tasktimers();
-  _executor.run(_taskflow).wait();
-  _prof::finalize_tasktimers();
-  _prof::stop_timer("_update_timing__taskflow_rctiming(test)");
-  
-  _taskflow.clear();
-  for(auto &p: _nets) {
-    p.second._test_flat_rct(); // clear state
-    p.second._rc_timing_updated = false;
-  }
-#endif
-  
   // build rc timing tasks.
   _build_rc_timing_tasks();
   
@@ -1120,29 +1268,32 @@ void Timer::_update_timing() {
   // clear the rc timing tasks
   _clear_rc_timing_tasks();
 
-#if 0
-  //debug output
-  for(auto &[s, net] : _nets) {
-    std::cout << "Net " << s << std::endl;
-    Rct *r1 = std::get_if<Rct>(&net._rct);
-    FlatRct *r2 = std::get_if<FlatRct>(&net._rct);
-    if(r1) {
-      for(auto const &[name, node] : r1->_nodes) {
-        std::cout << "Rct: " << name << ' ' << node.cap((Split)0, (Tran)0) << ' ' << node._load[0][0] << ' ' << node._delay[0][0] << ' ' << node._ldelay[0][0] << ' ' << node._impulse[0][0] << std::endl;
-      }
-    }
-    if(r2) {
-      for(auto const &[name, id] : r2->name2id) {
-        int o = (r2->arr_start + r2->bfs_reverse_order_map[id]) * 4;
-        auto const &st = *(r2->_stor);
-        std::cout << "FlatRct: " << name << ' ' << st.cap[o] << ' ' << st.load[o] << ' ' << st.delay[o] << ' ' << st.ldelay[o] << ' ' << st.impulse[o] << std::endl;
-      }
-    }
-  }
-#endif
+  // debug the rc timing result
+  // for(auto &[s, net] : _nets) {
+  //   std::cout << "Net " << s << std::endl;
+  //   Rct *r1 = std::get_if<Rct>(&net._rct);
+  //   FlatRct *r2 = std::get_if<FlatRct>(&net._rct);
+  //   if(r1) {
+  //     for(auto const &[name, node] : r1->_nodes) {
+  //       std::cout << "Rct: " << name << ' ' << node.cap((Split)0, (Tran)0) << ' ' << node._load[0][0] << ' ' << node._delay[0][0] << ' ' << node._ldelay[0][0] << ' ' << node._impulse[0][0] << std::endl;
+  //     }
+  //   }
+  //   if(r2) {
+  //     for(auto const &[name, id] : r2->name2id) {
+  //       int o = (r2->arr_start + r2->bfs_reverse_order_map[id]) * 4;
+  //       auto const &st = *(r2->_stor);
+  //       std::cout << "FlatRct: " << name << ' ' << st.cap[o] << ' ' << st.load[o] << ' ' << st.delay[o] << ' ' << st.ldelay[o] << ' ' << st.impulse[o] << std::endl;
+  //     }
+  //   }
+  // }
 
   // build propagation tasks
-  _build_prop_tasks();
+  if(_has_state(CUDA_ENABLED)) {
+    _build_prop_tasks_cuda();
+  }
+  else {
+    _build_prop_tasks();
+  }
 
   // debug the graph
   //_taskflow.dump(std::cout);
@@ -1152,7 +1303,7 @@ void Timer::_update_timing() {
   _executor.run(_taskflow).wait();
   _prof::stop_timer("_update_timing__taskflow_prop");
   _taskflow.clear();
-  
+
   // Clear the propagation tasks.
   _clear_prop_tasks();
 

@@ -212,12 +212,6 @@ void Arc::_insert_state(int s) {
   _state |= s;
 }
 
-// Function: _has_state
-bool Arc::_has_state(int s) const {
-  return _state & s;
-}
-
-
 };  // end of namespace ot. -----------------------------------------------------------------------
 
 

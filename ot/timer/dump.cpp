@@ -10,7 +10,6 @@ void Timer::dump_graph(std::ostream& os) const {
 
 // Function: _dump_graph
 void Timer::_dump_graph(std::ostream& os) const {
-  
   os << "digraph TimingGraph {\n";
   for(const auto& pin : _pins) {
     os << "  \"" << pin.second._name << "\";\n";
