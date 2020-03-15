@@ -12,10 +12,8 @@ namespace ot {
 class RctEdge;
 class RctNode;
 class Rct;
-struct FlatRctStorage;
-class FlatRct;
-class FlatRct2Storage; 
-class FlatRct2; 
+class FlatRctStorage; 
+class FlatRct; 
 
 // ------------------------------------------------------------------------------------------------
 
@@ -144,70 +142,11 @@ inline size_t Rct::num_edges() const {
 }
 
 // ------------------------------------------------------------------------------------------------
-// FlatRct support is built for CUDA Acceleration.
+// FlatRct support is built for CUDA Acceleration with BFS on CUDA.
 
 // Class: FlatRctStorage
 // This class is a storage stored in Timer instance
 struct FlatRctStorage {
-  size_t total_num_nodes;
-  std::vector<int> rct_nodes_start; ///< length of (num_nets + 1); record the offset of each net  
-  std::vector<int> rct_pid; ///< length of total_num_nodes; record how far away its parent locates. 
-                        ///< For example, the parent of node i is i - rct_pid[i]; the array itself is in BFS order. 
-  std::vector<int> rct_node2bfs_order; ///< length of total_num_nodes; given a node, get its BFS order 
-  std::vector<float> pres, cap;
-
-  std::vector<float> load, delay, ldelay, impulse;
-
-  void _update_timing_cpu();
-  void _update_timing_cuda();
-};
-
-// Class: FlatRct
-// This is essentially a pointer to a region of one FlatRctStorage
-class FlatRct {
-  friend class Net;
-  friend class Timer;
-  
-  FlatRctStorage *_stor;
-  //std::vector<int> bfs_order_map;
-  std::vector<int> rct_node2bfs_order;
-  size_t _num_nodes;
-  int _arr_start;
-
-public:
-  FlatRct() = default;
-  float slew(int, Split, Tran, float) const;
-  float delay(int, Split, Tran) const;
-
-  /// @brief Accessors for _name2id 
-  std::unordered_map<std::string, int>::const_iterator find(std::string const& name) const {
-      return _name2id.find(name); 
-  }
-  std::pair<std::unordered_map<std::string, int>::iterator, bool> insert(std::string const& name, int id) {
-      return _name2id.emplace(name, id); 
-  }
-  std::unordered_map<std::string, int>::const_iterator end() const {
-      return _name2id.end();
-  }
-  std::unordered_map<std::string, int>::iterator end() {
-      return _name2id.end();
-  }
-
-private:
-  void _scale_capacitance(float);
-  void _scale_resistance(float);
-
-  std::unordered_map<std::string, int> _name2id; ///< do not directly use it 
-};
-
-// ------------------------------------------------------------------------------------------------
-
-// ------------------------------------------------------------------------------------------------
-// FlatRct2 support is built for CUDA Acceleration with BFS on CUDA.
-
-// Class: FlatRctStorage
-// This class is a storage stored in Timer instance
-struct FlatRct2Storage {
   size_t total_num_nodes;
   size_t total_num_edges; 
   std::vector<int> rct_nodes_start; ///< length of (num_nets + 1); record the offset of each net  
@@ -225,20 +164,20 @@ struct FlatRct2Storage {
   void _update_timing_cuda();
 };
 
-// Class: FlatRct2
+// Class: FlatRct
 // This is essentially a pointer to a region of one FlatRctStorage
-class FlatRct2 {
+class FlatRct {
   friend class Net;
   friend class Timer;
   
-  FlatRct2Storage *_stor;
+  FlatRctStorage *_stor;
   size_t _num_nodes;
   int _arr_start;
   int _edge_start; 
   int _net_id; 
 
 public:
-  FlatRct2() = default;
+  FlatRct() = default;
   float slew(int, Split, Tran, float) const;
   float delay(int, Split, Tran) const;
 
@@ -298,7 +237,7 @@ class Net {
 
     std::list<Pin*> _pins;
 
-    std::variant<EmptyRct, Rct, FlatRct, FlatRct2> _rct;
+    std::variant<EmptyRct, Rct, FlatRct> _rct;
 
     std::optional<spef::Net> _spef_net;
 
@@ -314,11 +253,9 @@ class Net {
     void _attach(spef::Net&&);
     void _make_rct();
     //void _make_rct(const spef::Net&);
-    size_t _init_flat_rct(FlatRctStorage*, int);
-    size_t _init_flat_rct2(FlatRct2Storage*, int, int, int);
+    size_t _init_flat_rct(FlatRctStorage*, int, int, int);
     void _test_flat_rct();
     void _make_flat_rct();
-    void _make_flat_rct2();
     void _insert_pin(Pin&);
     void _remove_pin(Pin&);
     void _scale_capacitance(float);

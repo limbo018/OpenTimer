@@ -154,7 +154,8 @@ class Timer {
     std::unordered_map<std::string, Gate> _gates;
     std::unordered_map<std::string, Clock> _clocks;
 
-    std::variant<FlatRctStorage, FlatRct2Storage> _flat_rct_stor;
+    std::optional<FlatRctStorage> _flat_rct_stor;
+    std::optional<std::vector<int>> _prop_frontiers;
  
     std::list<Test> _tests;
     std::list<Arc> _arcs;
@@ -215,6 +216,8 @@ class Timer {
     void _build_rc_timing_tasks();
     void _build_prop_tasks();
     void _clear_prop_tasks();
+    void _run_prop_tasks_sequential();
+    void _build_prop_tasks_cuda();
     void _clear_rc_timing_tasks();
     void _read_spef(spef::Spef&);;
     void _verilog(vlog::Module&);

@@ -51,4 +51,9 @@
     checkCUDA(cudaMemcpy(var, rhs, sizeof(decltype(*rhs)) * (size), cudaMemcpyDeviceToHost)); \
   }
 
+#define memcpyHostDeviceCUDA(var, rhs, size) \
+  {                                          \
+    checkCUDA(cudaMemcpy(var, rhs, sizeof(decltype(*rhs)) * (size), cudaMemcpyHostToDevice)); \
+  }
+
 #endif
