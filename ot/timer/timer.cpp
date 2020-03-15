@@ -987,13 +987,19 @@ void Timer::_build_prop_tasks_cuda() {
   // Step 1: init edgelist, degree and frontier arrays
   
   int n = _pins.size();
+  int num_edges = std::numeric_limits<int>::max();
   std::vector<int> out(n, 0);
   std::vector<int> edgelist_start(n + 1, 0);
+  std::vector<int> edgelist;
+  _prop_frontiers.emplace(n, 0);
+  std::vector<int> &frontiers = *_prop_frontiers;
+  std::vector<int> frontiers_ends;
+  int first_size = 0;
 
-  OT_LOGI("bptc I");
+  OT_LOGI("bptc I - IV");
 
   // count number of edges
-  _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
+  auto [count_edges_S, count_edges_T] = _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
       int &szi = edgelist_start[pin->_idx + 1];
       for(auto arc: pin->_fanin) {
         if(!arc->_has_state(Arc::LOOP_BREAKER)
@@ -1005,21 +1011,23 @@ void Timer::_build_prop_tasks_cuda() {
            && arc->_to._has_state(Pin::FPROP_CAND)) ++outi;
       }
     }, 32);
-  _ex.run(_tf).wait();
-  _tf.clear();
 
-  OT_LOGI("bptc II");
+  //OT_LOGI("bptc II");
   
   // sequential partial sum
-  for(int i = 1; i <= n; ++i) edgelist_start[i] += edgelist_start[i - 1];
-
-  int num_edges = edgelist_start[n];
-  std::vector<int> edgelist(num_edges, 0);
+  auto prefix_sum = _tf.emplace([&](){
+          for(int i = 1; i <= n; ++i) {
+              edgelist_start[i] += edgelist_start[i - 1];
+          }
+          num_edges = edgelist_start[n];
+          edgelist.assign(num_edges, 0); 
+          });
+  prefix_sum.succeed(count_edges_T);
   
-  OT_LOGI("bptc III");
+  //OT_LOGI("bptc III");
 
   // put edges into edgelist
-  _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
+  auto [put_edges_S, put_edges_T] = _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
       int st = edgelist_start[pin->_idx];
       for(auto arc: pin->_fanin) {
         if(!arc->_has_state(Arc::LOOP_BREAKER)
@@ -1028,22 +1036,23 @@ void Timer::_build_prop_tasks_cuda() {
         }
       }
     }, 32);
-  _ex.run(_tf).wait();
-  _tf.clear();
+  put_edges_S.succeed(prefix_sum); 
   
-  OT_LOGI("bptc IV");
+  //OT_LOGI("bptc IV");
 
   // init default frontier
-  _prop_frontiers.emplace(n, 0);
-  std::vector<int> &frontiers = *_prop_frontiers;
-  std::vector<int> frontiers_ends;
-  
-  int first_size = 0;
-  for(auto pin: _fprop_cands) {
-    if(!out[pin->_idx]) frontiers[first_size++] = pin->_idx;
-  }
-  frontiers_ends.push_back(0);
-  frontiers_ends.push_back(first_size);
+  auto init_frontier = _tf.emplace([&](){
+              first_size = 0;
+              for(auto pin: _fprop_cands) {
+                if(!out[pin->_idx]) frontiers[first_size++] = pin->_idx;
+              }
+              frontiers_ends.push_back(0);
+              frontiers_ends.push_back(first_size);
+          });
+  init_frontier.succeed(put_edges_T);
+
+  _ex.run(_tf).wait();
+  _tf.clear();
   
   OT_LOGI("bptc V");
 
