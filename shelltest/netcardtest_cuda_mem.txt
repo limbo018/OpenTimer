@@ -1,5 +1,5 @@
 enable_cuda
-cd benchmark/netcard/
+cd /dev/shm/netcard/
 read_celllib -early netcard_iccad_Early.lib
 read_celllib -late netcard_iccad_Late.lib
 read_verilog netcard_iccad.v

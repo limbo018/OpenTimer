@@ -337,7 +337,7 @@ void Net::_make_rct() {
     rct.insert_segment(node1, node2, res);
   }
   
-  _spef_net.reset();
+  // _spef_net.reset();
   
   _rc_timing_updated = false;
 }
@@ -366,20 +366,6 @@ size_t Net::_init_flat_rct(FlatRctStorage *_stor, int arr_start, int edge_start,
   return rct._num_nodes;   // assuming all are grounded caps
 }
 
-// Procedure: _test_flat_rct
-// for time profiling only
-// do some work and then reset the flat rctree.
-void Net::_test_flat_rct() {
-  // Step 1: refer to the flat rctree object created during init
-  auto prct = std::get_if<FlatRct>(&_rct);
-  if(!prct) return;
-  auto &rct = *prct;
-
-  rct._name2id.clear();
-  //rct.bfs_order_map.resize(0);
-  //rct.rct_node2bfs_order.resize(0);
-}
-
 // Procedure: _make_flat_rct
 void Net::_make_flat_rct() {
   if(!_spef_net) return;
@@ -397,35 +383,35 @@ void Net::_make_flat_rct() {
 
   size_t num_nodes = rct._num_nodes;
   
-  // Step 2: build map std::string->int (merged with building graph)
+  // Step 2: Build graph
+  // using a transient local unordered_map can be much faster
+  std::unordered_map<std::string, int> name2id;
   int cnt = 0;
-
-  // Step 3: Build graph
 
   int edge_cnt = rct._edge_start; 
   for(const auto& [node1, node2, res] : _spef_net->ress) {
     auto& edge = _stor->rct_edges[edge_cnt];
     _stor->rct_edges_res[edge_cnt] = res; 
-    if(auto it = rct.find(node1); it != rct.end()) {
+    if(auto it = name2id.find(node1); it != name2id.end()) {
       edge.s = it->second;
     }
     else {
       edge.s = cnt++;
-      rct.insert(node1, edge.s); 
+      name2id[node1] = edge.s;
     }
-    if(auto it = rct.find(node2); it != rct.end()) {
+    if(auto it = name2id.find(node2); it != name2id.end()) {
       edge.t = it->second;
     }
     else {
       edge.t = cnt++;
-      rct.insert(node2, edge.t);
+      name2id[node2] = edge.t;
     }
     ++edge_cnt;
   }
-  rct._name2id.rehash(num_nodes);
+  //name2id.rehash(num_nodes);
 
   int root;
-  if(auto it = rct.find(_root->name()); it == rct.end()) {
+  if(auto it = name2id.find(_root->name()); it == name2id.end()) {
     OT_LOGE("flat rct make cannot locate root in spef tree");
     return;
   }
@@ -434,22 +420,28 @@ void Net::_make_flat_rct() {
 
   amap_graph = _prof::timestamp();
 
-  // Step 4: set cap 
+  // Step 3: set cap and init pin._idx -> id mapping
 
   for(const auto& [node1, node2, cap] : _spef_net->caps) {
     (void)node2;
-    int pos = rct.find(node1)->second; 
+    int pos = name2id.find(node1)->second; 
     for(int i = 0; i < MAX_SPLIT_TRAN; ++i) {
       _stor->rct_nodes_cap[(rct._arr_start + pos) * MAX_SPLIT_TRAN + i] = cap;
     }
   }
 
   for(auto pin : _pins) {
-    if(auto it = rct.find(pin->name()); it != rct.end()) {
-      if(it->second == root) continue; // ignore the root
-      FOR_EACH_EL_RF(el, rf) {
-        _stor->rct_nodes_cap[(rct._arr_start + it->second) * MAX_SPLIT_TRAN + el * MAX_TRAN + rf]
-          += pin->cap(el, rf);
+    if(auto it = name2id.find(pin->name()); it != name2id.end()) {
+      // pinidx2id
+      _stor->rct_pinidx2id[pin->_idx] = it->second;
+      
+      // cap
+      // we need to ignore the root when setting caps, as OpenTimer CPU version did.
+      if(it->second != root) {
+        FOR_EACH_EL_RF(el, rf) {
+          _stor->rct_nodes_cap[(rct._arr_start + it->second) * MAX_SPLIT_TRAN + el * MAX_TRAN + rf]
+            += pin->cap(el, rf);
+        }
       }
     }
     else {
@@ -666,10 +658,13 @@ std::optional<float> Net::_slew(Split m, Tran t, float si, Pin& to) const {
       else return std::nullopt;
     },
     [&] (const FlatRct& rct) -> std::optional<float> {
-      if(auto it = rct.find(to._name); it != rct.end()) {
-        return rct.slew(it->second, m, t, si);
-      }
-      else return std::nullopt;
+      int id = rct._stor->rct_pinidx2id[to._idx];
+      if(id == -1) return std::nullopt;
+      else return rct.slew(id, m, t, si);
+      // if(auto it = rct.find(to._name); it != rct.end()) {
+      //   return rct.slew(it->second, m, t, si);
+      // }
+      // else return std::nullopt;
     }
   }, _rct);
 }
@@ -692,12 +687,13 @@ std::optional<float> Net::_delay(Split m, Tran t, Pin& to) const {
       else return std::nullopt;
     },
     [&] (const FlatRct& rct) -> std::optional<float> {
-      
-      if(auto it = rct.find(to._name); it != rct.end()) {
-        //if(m == 0 && t == 0) OT_LOGI("delay ", to._name, " ", rct._stor->delay[(rct.arr_start + rct.rct_node2bfs_order[it->second]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t]);
-        return rct.delay(it->second, m, t);
-      }
-      else return std::nullopt;
+      int id = rct._stor->rct_pinidx2id[to._idx];
+      if(id == -1) return std::nullopt;
+      else return rct.delay(id, m, t);
+      // if(auto it = rct.find(to._name); it != rct.end()) {
+      //   return rct.delay(it->second, m, t);
+      // }
+      // else return std::nullopt;
     }
   }, _rct);
 }

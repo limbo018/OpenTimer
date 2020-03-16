@@ -148,7 +148,8 @@ inline size_t Rct::num_edges() const {
 // This class is a storage stored in Timer instance
 struct FlatRctStorage {
   size_t total_num_nodes;
-  size_t total_num_edges; 
+  size_t total_num_edges;
+  std::vector<int> rct_pinidx2id;  ///< given pin._idx, get its relative id in the FlatRct of its net.
   std::vector<int> rct_nodes_start; ///< length of (num_nets + 1); record the offset of each net  
   std::vector<RctEdgeCUDA> rct_edges; ///< length of total_num_edges; original undirected, will be directed after BFS 
   std::vector<int> rct_roots; ///< length of num_nets, root of each rc tree   
@@ -181,27 +182,12 @@ public:
   float slew(int, Split, Tran, float) const;
   float delay(int, Split, Tran) const;
 
-  /// @brief Accessor for _name2id, use reverse name instead of the original name 
-  std::unordered_map<std::string, int>::const_iterator find(std::string const& name) const {
-      std::string reverse_name(name.rbegin(), name.rend()); 
-      return _name2id.find(reverse_name); 
-  }
-  std::pair<std::unordered_map<std::string, int>::iterator, bool> insert(std::string const& name, int id) {
-      std::string reverse_name(name.rbegin(), name.rend()); 
-      return _name2id.emplace(reverse_name, id); 
-  }
-  std::unordered_map<std::string, int>::const_iterator end() const {
-      return _name2id.end();
-  }
-  std::unordered_map<std::string, int>::iterator end() {
-      return _name2id.end();
-  }
-
 private:
   void _scale_capacitance(float);
   void _scale_resistance(float);
 
-  std::unordered_map<std::string, int> _name2id; ///< Do not directly use it, because the names are stored differently. 
+  // no need to use any local structure!
+  //std::unordered_map<std::string, int> _name2id; ///< Do not directly use it, because the names are stored differently. 
                                                 ///< Consider the naming convention, it is better to use the reverse name 
                                                 ///< for faster comparison 
 };
@@ -254,7 +240,6 @@ class Net {
     void _make_rct();
     //void _make_rct(const spef::Net&);
     size_t _init_flat_rct(FlatRctStorage*, int, int, int);
-    void _test_flat_rct();
     void _make_flat_rct();
     void _insert_pin(Pin&);
     void _remove_pin(Pin&);

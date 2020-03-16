@@ -953,6 +953,7 @@ void Timer::_build_rc_timing_tasks() {
     stor.rct_nodes_cap.assign(total_num_nodes*MAX_SPLIT_TRAN, 0); 
     stor.rct_roots.resize(_nets.size());
     stor.rct_node2bfs_order.resize(total_num_nodes);
+    stor.rct_pinidx2id.assign(_pins.size(), -1);
     stor.rct_pid.resize(total_num_nodes);
 
     // Step 2: Create task for FlatRct make
