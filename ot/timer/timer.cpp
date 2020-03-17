@@ -928,24 +928,33 @@ void Timer::_build_rc_timing_tasks() {
 
   if(_has_state(CUDA_ENABLED)) {
     // Step 1: Allocate the space for FlatRct's
-    _flat_rct_stor.emplace();
-    auto &stor = *_flat_rct_stor;
+    auto& stor = _flat_rct_stor.emplace();
     
-    stor.arr_starts.reserve(_nets.size());
+    stor.rct_nodes_start.reserve(_nets.size() + 1);
     
     int total_num_nodes = 0;
+    int total_num_edges = 0; 
+    int net_id = 0; 
     for(auto &p : _nets) {
-      size_t sz = p.second._init_flat_rct(&stor, total_num_nodes);
+      size_t sz = p.second._init_flat_rct(&stor, total_num_nodes, total_num_edges, net_id);
       if(!sz) continue;
 
-      stor.arr_starts.push_back(total_num_nodes);
+      stor.rct_nodes_start.push_back(total_num_nodes);
       total_num_nodes += sz;
+      total_num_edges += sz - 1; 
+      net_id += 1; 
     }
-    stor.arr_starts.push_back(total_num_nodes);
+    assert(total_num_edges + net_id == total_num_nodes);
+    stor.rct_nodes_start.push_back(total_num_nodes);
     stor.total_num_nodes = total_num_nodes;
-    stor.pid.resize(total_num_nodes);
-    stor.pres.resize(total_num_nodes);
-    stor.cap.resize(total_num_nodes * MAX_SPLIT_TRAN);
+    stor.total_num_edges = total_num_edges; 
+    stor.rct_edges.resize(total_num_edges); 
+    stor.rct_edges_res.assign(total_num_edges, 0); 
+    stor.rct_nodes_cap.assign(total_num_nodes*MAX_SPLIT_TRAN, 0); 
+    stor.rct_roots.resize(_nets.size());
+    stor.rct_node2bfs_order.resize(total_num_nodes);
+    stor.rct_pinidx2id.assign(_pins.size(), -1);
+    stor.rct_pid.resize(total_num_nodes);
 
     // Step 2: Create task for FlatRct make
     auto pf_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
@@ -999,7 +1008,7 @@ void Timer::_build_prop_tasks_cuda() {
   OT_LOGI("bptc I - IV");
 
   // count number of edges
-  auto [count_edges_S, count_edges_T] = _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
+  auto count_edges_pair = _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
       int &szi = edgelist_start[pin->_idx + 1];
       for(auto arc: pin->_fanin) {
         if(!arc->_has_state(Arc::LOOP_BREAKER)
@@ -1022,7 +1031,7 @@ void Timer::_build_prop_tasks_cuda() {
           num_edges = edgelist_start[n];
           edgelist.assign(num_edges, 0); 
           });
-  prefix_sum.succeed(count_edges_T);
+  prefix_sum.succeed(count_edges_pair.second);
   
   //OT_LOGI("bptc III");
 

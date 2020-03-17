@@ -4,6 +4,7 @@
 #include <ot/spef/spef.hpp>
 #include <ot/timer/pin.hpp>
 #include <ot/traits.hpp>
+#include <ot/cuda/rct.cuh>
 
 namespace ot {
 
@@ -11,8 +12,8 @@ namespace ot {
 class RctEdge;
 class RctNode;
 class Rct;
-struct FlatRctStorage;
-class FlatRct;
+class FlatRctStorage; 
+class FlatRct; 
 
 // ------------------------------------------------------------------------------------------------
 
@@ -141,19 +142,26 @@ inline size_t Rct::num_edges() const {
 }
 
 // ------------------------------------------------------------------------------------------------
-// FlatRct support is built for CUDA Acceleration.
+// FlatRct support is built for CUDA Acceleration with BFS on CUDA.
 
 // Class: FlatRctStorage
 // This class is a storage stored in Timer instance
 struct FlatRctStorage {
   size_t total_num_nodes;
-  std::vector<int> arr_starts;
-  std::vector<int> pid;
-  std::vector<float> pres, cap;
+  size_t total_num_edges;
+  std::vector<int> rct_pinidx2id;  ///< given pin._idx, get its relative id in the FlatRct of its net.
+  std::vector<int> rct_nodes_start; ///< length of (num_nets + 1); record the offset of each net  
+  std::vector<RctEdgeCUDA> rct_edges; ///< length of total_num_edges; original undirected, will be directed after BFS 
+  std::vector<int> rct_roots; ///< length of num_nets, root of each rc tree   
+  std::vector<int> rct_pid; ///< length of total_num_nodes; record how far away its parent locates. 
+                        ///< For example, the parent of node i is i - rct_pid[i]; the array itself is in BFS order. 
+  std::vector<int> rct_node2bfs_order; ///< length of total_num_nodes; given a node, get its BFS order 
+
+  std::vector<float> rct_edges_res; ///< length of total_num_edges; edge resistance; in original order  
+  std::vector<float> rct_nodes_cap; ///< length of total_num_nodes; node capacitance; in original order 
 
   std::vector<float> load, delay, ldelay, impulse;
 
-  void _update_timing_cpu();
   void _update_timing_cuda();
 };
 
@@ -164,10 +172,10 @@ class FlatRct {
   friend class Timer;
   
   FlatRctStorage *_stor;
-  std::unordered_map<std::string, int> name2id;
-  std::vector<int> bfs_order_map, bfs_reverse_order_map;
   size_t _num_nodes;
-  int arr_start;
+  int _arr_start;
+  int _edge_start; 
+  int _net_id; 
 
 public:
   FlatRct() = default;
@@ -177,6 +185,11 @@ public:
 private:
   void _scale_capacitance(float);
   void _scale_resistance(float);
+
+  // no need to use any local structure!
+  //std::unordered_map<std::string, int> _name2id; ///< Do not directly use it, because the names are stored differently. 
+                                                ///< Consider the naming convention, it is better to use the reverse name 
+                                                ///< for faster comparison 
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -226,8 +239,7 @@ class Net {
     void _attach(spef::Net&&);
     void _make_rct();
     //void _make_rct(const spef::Net&);
-    size_t _init_flat_rct(FlatRctStorage*, int);
-    void _test_flat_rct();
+    size_t _init_flat_rct(FlatRctStorage*, int, int, int);
     void _make_flat_rct();
     void _insert_pin(Pin&);
     void _remove_pin(Pin&);

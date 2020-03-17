@@ -237,7 +237,7 @@ float Rct::total_ncap() const {
 
 // flat rct calculation on cpu
 void FlatRctStorage::_update_timing_cuda() {
-  if(!arr_starts.size()) {
+  if(!rct_nodes_start.size()) {
     OT_LOGE("rct storage update timing: not initialized");
     return;
   }
@@ -247,16 +247,20 @@ void FlatRctStorage::_update_timing_cuda() {
   delay.resize(total_num_nodes * 4);
   ldelay.resize(total_num_nodes * 4);
   impulse.resize(total_num_nodes * 4);
-  // has: total_num_nodes, arr_starts, pid, pres, cap, load, delay, ldelay, impulse
+  // has: total_num_nodes, rct_nodes_start, rct_pid, pres, cap, load, delay, ldelay, impulse
 
-  RctCUDA rct_cuda;
-  rct_cuda.num_nets = arr_starts.size() - 1;
-  rct_cuda.total_num_nodes = total_num_nodes;
+  RctEdgeArrayCUDA rct_cuda; 
+  rct_cuda.num_nets = rct_nodes_start.size() - 1; 
+  rct_cuda.total_num_nodes = total_num_nodes; 
+  rct_cuda.total_num_edges = total_num_edges; 
 #define COPY_PDATA(arr) rct_cuda.arr = arr.data();
-  COPY_PDATA(arr_starts);
-  COPY_PDATA(pid);
-  COPY_PDATA(pres);
-  COPY_PDATA(cap);
+  COPY_PDATA(rct_edges); 
+  COPY_PDATA(rct_roots); 
+  COPY_PDATA(rct_nodes_start); 
+  COPY_PDATA(rct_node2bfs_order); 
+  COPY_PDATA(rct_edges_res); 
+  COPY_PDATA(rct_nodes_cap);
+  COPY_PDATA(rct_pid); 
   COPY_PDATA(load);
   COPY_PDATA(delay);
   COPY_PDATA(ldelay);
@@ -267,94 +271,32 @@ void FlatRctStorage::_update_timing_cuda() {
 
   
   _prof::setup_timer("_update_timing_cuda :: rct_compute_cuda");
-  rct_compute_cuda(rct_cuda);
+  rct_bfs_and_compute_cuda(rct_cuda); 
   _prof::stop_timer("_update_timing_cuda :: rct_compute_cuda");
-}
-
-// Sequential flat rct calculation
-// Just for debugging.
-void FlatRctStorage::_update_timing_cpu() {
-  if(!arr_starts.size()) {
-    OT_LOGE("rct storage update timing: not initialized");
-    return;
-  }
-
-  load.resize(total_num_nodes * 4);
-  delay.resize(total_num_nodes * 4);
-  ldelay.resize(total_num_nodes * 4);
-  impulse.resize(total_num_nodes * 4);
-  // has: total_num_nodes, arr_starts, pid, pres, cap, load, delay, ldelay, impulse
-
-  for(size_t net_id = 0; net_id < arr_starts.size() - 1; ++net_id) {
-    for(unsigned int el_rf_offset = 0; el_rf_offset < MAX_SPLIT_TRAN; ++el_rf_offset) {
-      int st = arr_starts[net_id], ed = arr_starts[net_id + 1];
-      int st4 = st * 4 + el_rf_offset, ed4 = ed * 4 + el_rf_offset;
-      int rst4 = ed4 - 4, red4 = st4;   // red4 = st4, jumping over the root
-
-      // update load from cap
-      // and init array
-      for(int i = st4; i < ed4; i += 4) {
-        load[i] = cap[i];
-        delay[i] = ldelay[i] = impulse[i] = 0;
-      }
-
-      // update load from downstream to upstream
-      for(int i = rst4, j = ed - 1; i > red4; i -= 4, --j) {
-        int prev = i - pid[j] * 4;
-        load[prev] += load[i];
-      }
-
-      // update delay from upstream to downstream
-      for(int i = st4 + 4, j = st + 1; i < ed4; i += 4, ++j) {
-        int prev = i - pid[j] * 4;
-        delay[i] += delay[prev] + load[i] * pres[j];
-      }
-
-      // update cap*delay from downstream to upstream
-      for(int i = rst4, j = ed - 1; i > red4; i -= 4, --j) {
-        int prev = i - pid[j] * 4;
-        ldelay[i] += cap[i] * delay[i];
-        ldelay[prev] += ldelay[i];
-      }
-      ldelay[st4] += cap[st4] * delay[st4];
-
-      // update beta from upstream to downstream
-      for(int i = st4 + 4, j = st + 1; i < ed4; i += 4, ++j) {
-        int prev = i - pid[j] * 4;
-        impulse[i] += impulse[prev] + ldelay[i] * pres[j];
-      }
-
-      // beta -> impulse
-      for(int i = st4; i < ed4; i += 4) {
-        float t = delay.at(i);
-        impulse[i] = 2 * impulse.at(i) - t * t;
-      }
-    }
-  }
 }
 
 // ------------------------------------------------------------------------------------------------
 
 float FlatRct::slew(int id, Split m, Tran t, float si) const {
-  float impulse = _stor->impulse[(arr_start + bfs_reverse_order_map[id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+  float impulse = _stor->impulse[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
   return si < 0.0f ? -std::sqrt(si*si + impulse) : std::sqrt(si*si + impulse);
 }
 
 float FlatRct::delay(int id, Split m, Tran t) const {
-  return _stor->delay[(arr_start + bfs_reverse_order_map[id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+  return _stor->delay[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
 }
 
 void FlatRct::_scale_capacitance(float s) {
   for(size_t i = 0; i < _num_nodes; ++i) {
     for(int j = 0; j < MAX_SPLIT_TRAN; ++j) {
-      _stor->cap[(arr_start + i) * MAX_SPLIT_TRAN + j] *= s;
+      _stor->rct_nodes_cap[(_arr_start + i) * MAX_SPLIT_TRAN + j] *= s;
     }
   }
 }
 
 void FlatRct::_scale_resistance(float s) {
-  for(size_t i = 0; i < _num_nodes; ++i) { // i start from 1 also work?
-    _stor->pres[arr_start + i] *= s;
+  for(size_t i = 0; i < _num_nodes - 1; ++i) { 
+    _stor->rct_edges_res[_arr_start + i] *= s;
   }
 }
 
@@ -395,14 +337,14 @@ void Net::_make_rct() {
     rct.insert_segment(node1, node2, res);
   }
   
-  _spef_net.reset();
+  // _spef_net.reset();
   
   _rc_timing_updated = false;
 }
 
 // Procedure: _init_flat_rct
 // returns the size of this rctree
-size_t Net::_init_flat_rct(FlatRctStorage *_stor, int arr_start) {
+size_t Net::_init_flat_rct(FlatRctStorage *_stor, int arr_start, int edge_start, int net_id) {
   // The construction of a flat rctree must be split into two
   // procedures: init and make
   // init is to allocate proper space for all rctrees in a Timer
@@ -416,143 +358,90 @@ size_t Net::_init_flat_rct(FlatRctStorage *_stor, int arr_start) {
   auto &rct = _rct.emplace<FlatRct>();
   
   rct._stor = _stor;
-  rct.arr_start = arr_start;
+  rct._arr_start = arr_start;
+  rct._edge_start = edge_start; 
+  rct._net_id = net_id; 
   rct._num_nodes = _spef_net->ress.size() + 1;
 
   return rct._num_nodes;   // assuming all are grounded caps
-}
-
-// Procedure: _test_flat_rct
-// for time profiling only
-// do some work and then reset the flat rctree.
-void Net::_test_flat_rct() {
-  // Step 1: refer to the flat rctree object created during init
-  auto prct = std::get_if<FlatRct>(&_rct);
-  if(!prct) return;
-  auto &rct = *prct;
-
-  rct.name2id.clear();
-  rct.bfs_order_map.resize(0);
-  rct.bfs_reverse_order_map.resize(0);
 }
 
 // Procedure: _make_flat_rct
 void Net::_make_flat_rct() {
   if(!_spef_net) return;
 
-  _prof::intms st, amap_graph, abfs, acap;
+  _prof::intms st, amap_graph, acap;
 
   // Step 1: refer to the flat rctree object created during init
   auto prct = std::get_if<FlatRct>(&_rct);
   if(!prct) return;
   auto &rct = *prct;
 
-  size_t num_nodes = rct._num_nodes;
   FlatRctStorage *_stor = rct._stor;
 
   st = _prof::timestamp();
 
-  //rct.name2id.reserve(num_nodes);
-
-  // Step 2: build map std::string->int
+  size_t num_nodes = rct._num_nodes;
+  
+  // Step 2: Build graph
+  // using a transient local unordered_map can be much faster
+  std::unordered_map<std::string, int> name2id;
   int cnt = 0;
-  for(const auto& [node1, node2, cap] : _spef_net->caps) {
-    (void)cap;
 
-    // ground capacitance
-    if(node2.empty()) {
-      rct.name2id[node1] = cnt;
-      ++cnt;
-    }
-    else {
-      OT_LOGE("flat rct make encounters coupling capacitance, which is not supported by flat rct");
-      return;
-    }
-    // TODO: coupling capacitance
-  }
-
-  // Step 3: Build graph
-  std::vector<std::vector<std::pair<int, float>>> edges(num_nodes);
-
+  int edge_cnt = rct._edge_start; 
   for(const auto& [node1, node2, res] : _spef_net->ress) {
-    int a, b;
-    if(auto const &it = rct.name2id.find(node1); it != rct.name2id.end()) {
-      a = it->second;
+    auto& edge = _stor->rct_edges[edge_cnt];
+    _stor->rct_edges_res[edge_cnt] = res; 
+    if(auto it = name2id.find(node1); it != name2id.end()) {
+      edge.s = it->second;
     }
     else {
-      rct.name2id[node1] = a = cnt++;
+      edge.s = cnt++;
+      name2id[node1] = edge.s;
     }
-    if(auto const &it = rct.name2id.find(node2); it != rct.name2id.end()) {
-      b = it->second;
+    if(auto it = name2id.find(node2); it != name2id.end()) {
+      edge.t = it->second;
     }
     else {
-      rct.name2id[node2] = b = cnt++;
+      edge.t = cnt++;
+      name2id[node2] = edge.t;
     }
-
-    edges[a].emplace_back(b, res);
-    edges[b].emplace_back(a, res);
+    ++edge_cnt;
   }
-
-  amap_graph = _prof::timestamp();
-
-  // Step 4: BFS to compute order
-  std::deque<int> q;
-  rct.bfs_order_map.resize(num_nodes);
-  rct.bfs_reverse_order_map.resize(num_nodes);
-  std::vector<char> vis(num_nodes, false);
+  //name2id.rehash(num_nodes);
 
   int root;
-  if(auto it = rct.name2id.find(_root->name()); it == rct.name2id.end()) {
+  if(auto it = name2id.find(_root->name()); it == name2id.end()) {
     OT_LOGE("flat rct make cannot locate root in spef tree");
     return;
   }
   else root = it->second;
+  _stor->rct_roots[rct._net_id] = root; 
 
-  vis[root] = true;
-  q.push_back(root);
-  rct.bfs_order_map[0] = root;
-  rct.bfs_reverse_order_map[root] = 0;
-  cnt = 1;
+  amap_graph = _prof::timestamp();
 
-  while(!q.empty()) {
-    int u = q.front(); q.pop_front();
-    int uid = rct.bfs_reverse_order_map[u];
-
-    for(auto const &[v, res] : edges[u]) {
-      if(!vis[v]) {
-        vis[v] = true;
-        rct.bfs_order_map[cnt] = v;
-        rct.bfs_reverse_order_map[v] = cnt;
-        _stor->pid[rct.arr_start + cnt] = cnt - uid;
-        _stor->pres[rct.arr_start + cnt] = res;
-        ++cnt;
-        q.push_back(v);
-      }
-    }
-  }
-
-  abfs = _prof::timestamp();
-
-  // Step 5: set cap according to bfs order
-
-  for(size_t i = 0; i < num_nodes * 4; ++i) {
-    _stor->cap[rct.arr_start * 4 + i] = 0;
-  }
+  // Step 3: set cap and init pin._idx -> id mapping
 
   for(const auto& [node1, node2, cap] : _spef_net->caps) {
     (void)node2;
-    int pos = rct.bfs_reverse_order_map[rct.name2id[node1]];
+    int pos = name2id.find(node1)->second; 
     for(int i = 0; i < MAX_SPLIT_TRAN; ++i) {
-      _stor->cap[(rct.arr_start + pos) * MAX_SPLIT_TRAN + i] = cap;
+      _stor->rct_nodes_cap[(rct._arr_start + pos) * MAX_SPLIT_TRAN + i] = cap;
     }
   }
 
   for(auto pin : _pins) {
-    if(auto it = rct.name2id.find(pin->name()); it != rct.name2id.end()) {
-      if(rct.bfs_reverse_order_map[it->second] == 0) continue; // ignore the root
-      FOR_EACH_EL_RF(el, rf) {
-        _stor->cap[(rct.arr_start + rct.bfs_reverse_order_map[it->second]) * MAX_SPLIT_TRAN + el * MAX_TRAN + rf]
-          += pin->cap(el, rf);
+    if(auto it = name2id.find(pin->name()); it != name2id.end()) {
+      // pinidx2id
+      _stor->rct_pinidx2id[pin->_idx] = it->second;
+      
+      // cap
+      // we need to ignore the root when setting caps, as OpenTimer CPU version did.
+      if(it->second != root) {
+        FOR_EACH_EL_RF(el, rf) {
+          _stor->rct_nodes_cap[(rct._arr_start + it->second) * MAX_SPLIT_TRAN + el * MAX_TRAN + rf]
+            += pin->cap(el, rf);
+        }
       }
     }
     else {
@@ -564,8 +453,7 @@ void Net::_make_flat_rct() {
 
   // update task timers
   _prof::t_map += amap_graph - st;
-  _prof::t_bfs += abfs - amap_graph;
-  _prof::t_cap += acap - abfs;
+  _prof::t_cap += acap - amap_graph; 
 
   //_spef_net.reset();
   
@@ -613,7 +501,17 @@ void Net::_update_rc_timing_flat() {
     return;
   }
 
-  _make_flat_rct();
+  std::visit(Functors{
+    [&] (EmptyRct& rct) {
+      assert(0); 
+    },
+    [&] (Rct& rct) {
+      assert(0); 
+    },
+    [&] (FlatRct &rct) {
+      _make_flat_rct();
+    }
+    }, _rct);
   
   std::visit(Functors{
     [&] (EmptyRct& rct) {
@@ -738,7 +636,7 @@ float Net::_load(Split m, Tran t) const {
       return rct._root->_load[m][t];
     },
     [&] (const FlatRct &rct) {
-      return rct._stor->load[rct.arr_start * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+      return rct._stor->load[rct._arr_start * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
     }
   }, _rct);
 }
@@ -760,10 +658,13 @@ std::optional<float> Net::_slew(Split m, Tran t, float si, Pin& to) const {
       else return std::nullopt;
     },
     [&] (const FlatRct& rct) -> std::optional<float> {
-      if(auto it = rct.name2id.find(to._name); it != rct.name2id.end()) {
-        return rct.slew(it->second, m, t, si);
-      }
-      else return std::nullopt;
+      int id = rct._stor->rct_pinidx2id[to._idx];
+      if(id == -1) return std::nullopt;
+      else return rct.slew(id, m, t, si);
+      // if(auto it = rct.find(to._name); it != rct.end()) {
+      //   return rct.slew(it->second, m, t, si);
+      // }
+      // else return std::nullopt;
     }
   }, _rct);
 }
@@ -786,12 +687,13 @@ std::optional<float> Net::_delay(Split m, Tran t, Pin& to) const {
       else return std::nullopt;
     },
     [&] (const FlatRct& rct) -> std::optional<float> {
-      
-      if(auto it = rct.name2id.find(to._name); it != rct.name2id.end()) {
-        //if(m == 0 && t == 0) OT_LOGI("delay ", to._name, " ", rct._stor->delay[(rct.arr_start + rct.bfs_reverse_order_map[it->second]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t]);
-        return rct.delay(it->second, m, t);
-      }
-      else return std::nullopt;
+      int id = rct._stor->rct_pinidx2id[to._idx];
+      if(id == -1) return std::nullopt;
+      else return rct.delay(id, m, t);
+      // if(auto it = rct.find(to._name); it != rct.end()) {
+      //   return rct.delay(it->second, m, t);
+      // }
+      // else return std::nullopt;
     }
   }, _rct);
 }

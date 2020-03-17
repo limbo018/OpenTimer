@@ -26,7 +26,8 @@
     cudaError_t status = cudaFree(var); \
     if (status != cudaSuccess) \
     { \
-        printf("cudaFree failed for var##\n"); \
+        printf("cudaFree failed for " #var "\n"); \
+        assert(status == cudaSuccess);            \
     } \
 }
 
