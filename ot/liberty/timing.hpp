@@ -123,6 +123,8 @@ struct Timing {
   std::optional<float> delay(Tran, Tran, float, float) const;
   std::optional<float> slew(Tran, Tran, float, float) const;
   std::optional<float> constraint(Tran, Tran, float, float) const;
+  
+  void dump_slew(std::ostream&) const;
 };
 
 std::ostream& operator << (std::ostream&, const Timing&);

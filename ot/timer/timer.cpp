@@ -1232,6 +1232,265 @@ void Timer::_clear_prop_tasks() {
   _bprop_cands.clear();
 }
 
+// Procedure: _flattern_liberty
+void Timer::_flattern_liberty() {
+
+  // here we clear all data to regenerate the data
+  FOR_EACH_EL_RF_RF(el, irf, orf) {
+    _num_hts = 0;
+    _hts[el][irf][orf].clear();
+    _t2ht[el][irf][orf].clear();
+  }
+  _ft.num_hts = 0;
+  _ft.slew_indices1.clear();
+  _ft.slew_indices2.clear();
+  _ft.slew_table.clear();
+  _ft.slew_indices1_start.clear();
+  _ft.slew_indices2_start.clear();
+  _ft.slew_table_start.clear();
+  _ft.delay_indices1.clear();
+  _ft.delay_indices2.clear();
+  _ft.delay_table.clear();
+  _ft.delay_indices1_start.clear();
+  _ft.delay_indices2_start.clear();
+  _ft.delay_table_start.clear();
+
+
+  OT_LOGI("flatterning celllib timing arcs ...");
+  FOR_EACH_EL_IF(el, _celllib[el]) {
+    
+    auto& celllib = *_celllib[el];
+
+    for(const auto& cell : celllib.cells) {
+      for(const auto& cp : cell.second.cellpins) {
+        for(const auto& t : cp.second.timings) {
+          FOR_EACH_RF_RF_IF(irf, orf, t.is_transition_defined(irf, orf)) {
+            
+            assert(_t2ht[el][irf][orf].find(&t) == _t2ht[el][irf][orf].end());
+
+            auto& ht = _hts[el][irf][orf].emplace_back();
+            _t2ht[el][irf][orf][&t] = &ht;
+            ht.id = _num_hts++;
+
+            const Lut* slut {nullptr};
+            const Lut* dlut {nullptr};
+            
+            // slew and delay
+            switch(orf) {
+              case RISE:
+                slut = t.rise_transition ? &(t.rise_transition.value()) : nullptr;
+                dlut = t.cell_rise ? &(t.cell_rise.value()) : nullptr;
+              break;
+
+              case FALL:
+                slut = t.fall_transition ? &(t.fall_transition.value()) : nullptr;
+                dlut = t.cell_fall ? &(t.cell_fall.value()) : nullptr;
+              break;
+            }
+
+            if(slut != nullptr) {
+              ht.slew_indices1 = slut->indices1;
+              ht.slew_indices2 = slut->indices2;
+              ht.slew_table = slut->table;
+            }
+
+            if(dlut != nullptr) {
+              ht.delay_indices1 = dlut->indices1;
+              ht.delay_indices2 = dlut->indices2;
+              ht.delay_table = dlut->table;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // flattern the table
+  _ft.num_hts = _num_hts;
+
+  // calculate slew length and delay length
+  size_t slew_indices1_size = 0;
+  size_t slew_indices2_size = 0;
+  size_t slew_table_size = 0;
+  size_t delay_indices1_size = 0;
+  size_t delay_indices2_size = 0;
+  size_t delay_table_size = 0;
+
+  _ft.slew_indices1_start.resize(_num_hts+1);
+  _ft.slew_indices2_start.resize(_num_hts+1);
+  _ft.slew_table_start.resize(_num_hts+1);
+  _ft.delay_indices1_start.resize(_num_hts+1);
+  _ft.delay_indices2_start.resize(_num_hts+1);
+  _ft.delay_table_start.resize(_num_hts+1);
+
+  FOR_EACH_EL_RF_RF(el, irf, orf) {
+    for(const auto& ht : _hts[el][irf][orf]) {
+      _ft.slew_indices1_start [ht.id + 1] = ht.slew_indices1.size();
+      _ft.slew_indices2_start [ht.id + 1] = ht.slew_indices2.size();
+      _ft.slew_table_start    [ht.id + 1] = ht.slew_table.size();
+      _ft.delay_indices1_start[ht.id + 1] = ht.delay_indices1.size();
+      _ft.delay_indices2_start[ht.id + 1] = ht.delay_indices2.size();
+      _ft.delay_table_start   [ht.id + 1] = ht.delay_table.size();
+      slew_indices1_size  += ht.slew_indices1.size();
+      slew_indices2_size  += ht.slew_indices2.size();
+      slew_table_size     += ht.slew_table.size();
+      delay_indices1_size += ht.delay_indices1.size();
+      delay_indices2_size += ht.delay_indices2.size();
+      delay_table_size    += ht.delay_table.size();
+    }
+  }
+    
+  _ft.slew_indices1.resize(slew_indices1_size);
+  _ft.slew_indices2.resize(slew_indices2_size);
+  _ft.slew_table.resize(slew_table_size);
+  _ft.delay_indices1.resize(delay_indices1_size);
+  _ft.delay_indices2.resize(delay_indices2_size);
+  _ft.delay_table.resize(delay_table_size);
+
+  _ft.slew_indices1_start [0] = 0;
+  _ft.slew_indices2_start [0] = 0;
+  _ft.slew_table_start    [0] = 0;
+  _ft.delay_indices1_start[0] = 0;
+  _ft.delay_indices2_start[0] = 0;
+  _ft.delay_table_start   [0] = 0;
+
+  for(size_t i=1; i<=_num_hts; ++i) {
+    _ft.slew_indices1_start[i]  += _ft.slew_indices1_start[i-1];
+    _ft.slew_indices2_start[i]  += _ft.slew_indices2_start[i-1];
+    _ft.slew_table_start[i]     += _ft.slew_table_start[i-1];
+    _ft.delay_indices1_start[i] += _ft.delay_indices1_start[i-1];
+    _ft.delay_indices2_start[i] += _ft.delay_indices2_start[i-1];
+    _ft.delay_table_start[i]    += _ft.delay_table_start[i-1];
+  }
+  
+  FOR_EACH_EL_RF_RF(el, irf, orf) {
+    for(const auto& ht : _hts[el][irf][orf]) {
+
+      size_t beg = 0;
+      size_t end = 0;
+
+      // fill slew_indices1
+      beg = _ft.slew_indices1_start[ht.id];
+      end = _ft.slew_indices1_start[ht.id + 1]; 
+      assert(end - beg == ht.slew_indices1.size());
+      std::copy_n(
+        ht.slew_indices1.begin(), ht.slew_indices1.size(), _ft.slew_indices1.begin() + beg
+      );
+      
+      // fill slew_indices2
+      beg = _ft.slew_indices2_start[ht.id];
+      end = _ft.slew_indices2_start[ht.id + 1]; 
+      assert(end - beg == ht.slew_indices2.size());
+      std::copy_n(
+        ht.slew_indices2.begin(), ht.slew_indices2.size(), _ft.slew_indices2.begin() + beg
+      );
+      
+      // fill slew_table
+      beg = _ft.slew_table_start[ht.id];
+      end = _ft.slew_table_start[ht.id + 1]; 
+      assert(end - beg == ht.slew_table.size());
+      std::copy_n(
+        ht.slew_table.begin(), ht.slew_table.size(), _ft.slew_table.begin() + beg
+      );
+      
+      // fill delay_indices1
+      beg = _ft.delay_indices1_start[ht.id];
+      end = _ft.delay_indices1_start[ht.id + 1]; 
+      assert(end - beg == ht.delay_indices1.size());
+      std::copy_n(
+        ht.delay_indices1.begin(), ht.delay_indices1.size(), _ft.delay_indices1.begin() + beg
+      );
+      
+      // fill delay_indices2
+      beg = _ft.delay_indices2_start[ht.id];
+      end = _ft.delay_indices2_start[ht.id + 1]; 
+      assert(end - beg == ht.delay_indices2.size());
+      std::copy_n(
+        ht.delay_indices2.begin(), ht.delay_indices2.size(), _ft.delay_indices2.begin() + beg
+      );
+      
+      // fill delay_table
+      beg = _ft.delay_table_start[ht.id];
+      end = _ft.delay_table_start[ht.id + 1]; 
+      assert(end - beg == ht.delay_table.size());
+      std::copy_n(
+        ht.delay_table.begin(), ht.delay_table.size(), _ft.delay_table.begin() + beg
+      );
+
+    }
+  }
+  OT_LOGI(_num_hts, " celllib timing arcs flatterned");
+}
+
+void Timer::_update_arc2ftid() {
+
+  // map the id to each arc
+  for(auto& arc : _arcs) {
+    std::cout << "arc " << arc._from._name << "->" << arc._to._name << " flat table mapping:\n";
+    FOR_EACH_EL_RF_RF(el, irf, orf) {
+      std::cout << "  " << to_string(el) << ' ' << to_string(irf) << ' ' << to_string(orf) << ' ';
+      arc._ftid[el][irf][orf].reset();
+      if(auto tv = std::get_if<TimingView>(&arc._handle); tv) {
+        const auto t = (*tv)[el];
+        if(t != nullptr) {
+          if(t->is_transition_defined(irf, orf)) {
+            assert(_t2ht[el][irf][orf].find(t) != _t2ht[el][irf][orf].end());
+            arc._ftid[el][irf][orf] = _t2ht[el][irf][orf][t]->id;
+          }
+          else {
+            assert(_t2ht[el][irf][orf].find(t) == _t2ht[el][irf][orf].end());
+          }
+        }
+      }
+
+      // You may comment the following section (for inspection)
+      if(arc._ftid[el][irf][orf]) {
+        auto id = arc._ftid[el][irf][orf].value();
+        std::cout << id << '\n';
+        
+        std::cout << "    slew_indices1:";
+        for(auto i = _ft.slew_indices1_start[id]; i<_ft.slew_indices1_start[id+1]; i++) {
+          std::cout << ' ' << _ft.slew_indices1[i];
+        }
+        std::cout << '\n';
+        
+        std::cout << "    slew_indices2:";
+        for(auto i = _ft.slew_indices2_start[id]; i<_ft.slew_indices2_start[id+1]; i++) {
+          std::cout << ' ' << _ft.slew_indices2[i];
+        }
+        std::cout << '\n';
+        
+        std::cout << "    slew_table:";
+        for(auto i = _ft.slew_table_start[id]; i<_ft.slew_table_start[id+1]; i++) {
+          std::cout << ' ' << _ft.slew_table[i];
+        }
+        std::cout << '\n';
+        
+        std::cout << "    delay_indices1:";
+        for(auto i = _ft.delay_indices1_start[id]; i<_ft.delay_indices1_start[id+1]; i++) {
+          std::cout << ' ' << _ft.delay_indices1[i];
+        }
+        std::cout << '\n';
+        
+        std::cout << "    delay_indices2:";
+        for(auto i = _ft.delay_indices2_start[id]; i<_ft.delay_indices2_start[id+1]; i++) {
+          std::cout << ' ' << _ft.delay_indices2[i];
+        }
+        std::cout << '\n';
+        
+        std::cout << "    delay_table:";
+        for(auto i = _ft.delay_table_start[id]; i<_ft.delay_table_start[id+1]; i++) {
+          std::cout << ' ' << _ft.delay_table[i];
+        }
+        std::cout << '\n';
+      }
+      else {
+        std::cout << "x\n";
+      }
+    }
+  }
+}
+
 // Function: update_timing
 // Perform comprehensive timing update: 
 // (1) grpah-based timing (GBA)
@@ -1257,6 +1516,13 @@ void Timer::_update_timing() {
   _prof::stop_timer("_update_timing__taskflow_read");
   _taskflow.clear();
   _lineage.reset();
+
+  // TODO
+  // Timing Graph here is constructed
+  _flattern_liberty();    // <- this function in practice should call only once
+  _update_arc2ftid();
+  // END-TODO
+  
   
   // Check if full update is required
   if(_has_state(FULL_TIMING)) {

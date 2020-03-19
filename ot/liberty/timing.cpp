@@ -552,6 +552,99 @@ std::optional<float> Timing::slew(Tran irf, Tran orf, float slew, float load) co
   return (*lut)(val1, val2); 
 }
 
+// Procedure: dump_slew
+void Timing::dump_slew(std::ostream& os) const {
+
+  os << "related pin: " << related_pin << '\n';
+
+  // transitionable table
+  os << "transition defined:\n";
+  FOR_EACH_RF_RF(irf, orf) {
+    os << irf << ' ' << orf << ' ' << is_transition_defined(irf, orf) << '\n';
+  }
+
+  // rise transition
+  os << "rise transition: " << '\n';  
+  if(rise_transition) {
+
+    const auto& indices1 = rise_transition->indices1;
+    const auto& indices2 = rise_transition->indices2;
+    const auto& table    = rise_transition->table;
+
+    const auto lut_template = rise_transition->lut_template;
+
+    if(lut_template != nullptr) {
+      const auto var1 = lut_template->variable1;
+      const auto var2 = lut_template->variable2;
+      os << "var1: " << (var1 == LutVar::TOTAL_OUTPUT_NET_CAPACITANCE ? "load" : "slew") << '\n';
+      os << "var2: " << (var2 == LutVar::TOTAL_OUTPUT_NET_CAPACITANCE ? "load" : "slew") << '\n';
+    }
+    else {
+      os << "var1: load\n"
+         << "var2: slew\n";
+    }
+
+    os << "dimension: " << indices1.size() << ' ' << indices2.size() << '\n';
+
+    os << "indices1:";
+    for(const auto& v : indices1) os << ' ' << v;
+    os << '\n';
+    
+    os << "indices2: ";
+    for(const auto& v : indices2) os << ' ' << v;
+    os << '\n';
+
+    os << "table: ";
+    for(const auto& v : table) os << ' ' << v;
+    os << '\n';
+
+  }
+  else {
+    os << "none\n";
+  }
+
+  // fall transition
+  os << "fall transition: " << '\n';  
+  if(fall_transition) {
+
+    const auto& indices1 = fall_transition->indices1;
+    const auto& indices2 = fall_transition->indices2;
+    const auto& table    = fall_transition->table;
+
+    const auto lut_template = fall_transition->lut_template;
+
+    if(lut_template != nullptr) {
+      const auto var1 = lut_template->variable1;
+      const auto var2 = lut_template->variable2;
+      os << "var1: " << (var1 == LutVar::TOTAL_OUTPUT_NET_CAPACITANCE ? "load" : "slew") << '\n';
+      os << "var2: " << (var2 == LutVar::TOTAL_OUTPUT_NET_CAPACITANCE ? "load" : "slew") << '\n';
+    }
+    else {
+      os << "var1: load\n"
+         << "var2: slew\n";
+    }
+
+    os << "dimension: " << indices1.size() << ' ' << indices2.size() << '\n';
+
+    os << "indices1:";
+    for(const auto& v : indices1) os << ' ' << v;
+    os << '\n';
+    
+    os << "indices2: ";
+    for(const auto& v : indices2) os << ' ' << v;
+    os << '\n';
+
+    os << "table: ";
+    for(const auto& v : table) os << ' ' << v;
+    os << '\n';
+
+  }
+  else {
+    os << "none\n";
+  }
+
+}
+
 // Function: constraint
 // Query the constraint which is referenced by the output transition status, input slew, and
 // output slew. The output transition status indicates the type of lut that should be used 

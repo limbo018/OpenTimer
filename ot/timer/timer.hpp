@@ -20,6 +20,42 @@
 #include <ot/tau/tau15.hpp>
 
 namespace ot {
+  
+// This is the dumpped timing info
+struct HierTable {
+
+  unsigned id;                        // [0, num_hts)
+  
+  std::vector<float> slew_indices1;   // input slew
+  std::vector<float> slew_indices2;   // output load
+  std::vector<float> slew_table;      // slew table
+  
+  std::vector<float> delay_indices1;  // input slew
+  std::vector<float> delay_indices2;  // output load
+  std::vector<float> delay_table;     // delay table
+   
+};
+
+struct FlatTable {
+
+  unsigned num_hts;
+  
+  std::vector<float> slew_indices1;  
+  std::vector<float> slew_indices2;  
+  std::vector<float> slew_table;           
+  
+  std::vector<float> delay_indices1;  
+  std::vector<float> delay_indices2;  
+  std::vector<float> delay_table;           
+
+  std::vector<size_t> slew_indices1_start;
+  std::vector<size_t> slew_indices2_start;
+  std::vector<size_t> slew_table_start;
+
+  std::vector<size_t> delay_indices1_start;
+  std::vector<size_t> delay_indices2_start;
+  std::vector<size_t> delay_table_start;
+};
 
 // Class: Timer
 class Timer {
@@ -100,7 +136,7 @@ class Timer {
     void dump_verilog(std::ostream&, const std::string&) const;
     void dump_spef(std::ostream&) const;
     void dump_rctree(std::ostream&) const;
-    
+
     inline auto num_primary_inputs() const;
     inline auto num_primary_outputs() const;
     inline auto num_pins() const;
@@ -179,6 +215,11 @@ class Timer {
     std::vector<Pin*> _scc_cands;
     std::vector<Pin*> _idx2pin;
     std::vector<Arc*> _idx2arc;
+  
+    std::list<HierTable> _hts[MAX_SPLIT][MAX_TRAN][MAX_TRAN];
+    std::unordered_map<const Timing*, HierTable*> _t2ht[MAX_SPLIT][MAX_TRAN][MAX_TRAN];
+    size_t _num_hts = 0;
+    FlatTable _ft;
 
     std::vector<Endpoint*> _worst_endpoints(size_t);
     std::vector<Endpoint*> _worst_endpoints(size_t, Split);
@@ -262,6 +303,8 @@ class Timer {
     void _insert_full_timing_frontiers();
     void _spur(Endpoint&, size_t, PathHeap&) const;
     void _spur(PfxtCache&, const PfxtNode&) const;
+    void _flattern_liberty();
+    void _update_arc2ftid();
     void _dump_graph(std::ostream&) const;
     void _dump_taskflow(std::ostream&) const;
     void _dump_cell(std::ostream&, const std::string&, Split) const;

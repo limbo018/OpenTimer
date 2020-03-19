@@ -55,11 +55,13 @@ class Arc {
 
     std::variant<Net*, TimingView> _handle;
 
+
     std::optional<std::list<Arc>::iterator> _satellite;
     std::optional<std::list<Arc*>::iterator> _fanout_satellite;
     std::optional<std::list<Arc*>::iterator> _fanin_satellite;
     
     TimingData<std::optional<float>, MAX_SPLIT, MAX_TRAN, MAX_TRAN> _delay;
+    TimingData<std::optional<size_t>, MAX_SPLIT, MAX_TRAN, MAX_TRAN> _ftid;
 
     void _remap_timing(Split, const Timing&);
     void _fprop_slew();
