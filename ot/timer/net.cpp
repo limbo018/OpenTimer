@@ -36,6 +36,11 @@ float RctNode::delay(Split m, Tran t) const {
   return _delay[m][t];
 }
 
+// Function: impulse
+float RctNode::impulse(Split m, Tran t) const {  
+  return _impulse[m][t];
+}
+
 // ------------------------------------------------------------------------------------------------
 
 // Constructor
@@ -224,6 +229,15 @@ float Rct::delay(const std::string& name, Split m, Tran t) const {
   return itr->second.delay(m, t);
 }
 
+// Function: impulse
+float Rct::impulse(const std::string& name, Split m, Tran t) const {
+  auto itr = _nodes.find(name);
+  if(itr == _nodes.end()) {
+    OT_THROW(Error::RCT, "failed to get impulse (rct-node ", name, " not found)");
+  }
+  return itr->second.impulse(m, t);
+}
+
 // Function: total_ncap
 float Rct::total_ncap() const {
   return std::accumulate(_nodes.begin(), _nodes.end(), 0.0f,
@@ -278,12 +292,16 @@ void FlatRctStorage::_update_timing_cuda() {
 // ------------------------------------------------------------------------------------------------
 
 float FlatRct::slew(int id, Split m, Tran t, float si) const {
-  float impulse = _stor->impulse[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
-  return si < 0.0f ? -std::sqrt(si*si + impulse) : std::sqrt(si*si + impulse);
+  float impulse_value = impulse(id, m, t);
+  return si < 0.0f ? -std::sqrt(si*si + impulse_value) : std::sqrt(si*si + impulse_value);
 }
 
 float FlatRct::delay(int id, Split m, Tran t) const {
   return _stor->delay[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+}
+
+float FlatRct::impulse(int id, Split m, Tran t) const {
+  return _stor->impulse[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
 }
 
 void FlatRct::_scale_capacitance(float s) {
@@ -694,6 +712,30 @@ std::optional<float> Net::_delay(Split m, Tran t, Pin& to) const {
       //   return rct.delay(it->second, m, t);
       // }
       // else return std::nullopt;
+    }
+  }, _rct);
+}
+
+// Function: _impulse
+// Query the impulse at the give pin through this net
+std::optional<float> Net::_impulse(Split m, Tran t, Pin& to) const {
+
+  assert(_rc_timing_updated && to._net == this);
+
+  return std::visit(Functors{
+    [&] (const EmptyRct&) -> std::optional<float> {
+      return 0;
+    },
+    [&] (const Rct& rct) -> std::optional<float> {
+      if(auto node = rct.node(to._name); node) {
+        return node->impulse(m, t);
+      }
+      else return std::nullopt;
+    },
+    [&] (const FlatRct& rct) -> std::optional<float> {
+      int id = rct._stor->rct_pinidx2id[to._idx];
+      if(id == -1) return std::nullopt;
+      else return rct.impulse(id, m, t);
     }
   }, _rct);
 }

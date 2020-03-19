@@ -38,8 +38,10 @@ struct HierTable {
 
 struct FlatTable {
 
-  unsigned num_hts;
-  
+  unsigned num_tables; // number of valid tables, only count for existing ones 
+
+  std::unordered_map<const Timing*, unsigned> t2ftid[MAX_SPLIT][MAX_TRAN][MAX_TRAN];
+
   std::vector<float> slew_indices1;  
   std::vector<float> slew_indices2;  
   std::vector<float> slew_table;           
@@ -48,13 +50,13 @@ struct FlatTable {
   std::vector<float> delay_indices2;  
   std::vector<float> delay_table;           
 
-  std::vector<size_t> slew_indices1_start;
-  std::vector<size_t> slew_indices2_start;
-  std::vector<size_t> slew_table_start;
+  std::vector<unsigned> slew_indices1_start;
+  std::vector<unsigned> slew_indices2_start;
+  std::vector<unsigned> slew_table_start;
 
-  std::vector<size_t> delay_indices1_start;
-  std::vector<size_t> delay_indices2_start;
-  std::vector<size_t> delay_table_start;
+  std::vector<unsigned> delay_indices1_start;
+  std::vector<unsigned> delay_indices2_start;
+  std::vector<unsigned> delay_table_start;
 };
 
 // Class: Timer
@@ -216,9 +218,6 @@ class Timer {
     std::vector<Pin*> _idx2pin;
     std::vector<Arc*> _idx2arc;
   
-    std::list<HierTable> _hts[MAX_SPLIT][MAX_TRAN][MAX_TRAN];
-    std::unordered_map<const Timing*, HierTable*> _t2ht[MAX_SPLIT][MAX_TRAN][MAX_TRAN];
-    size_t _num_hts = 0;
     FlatTable _ft;
 
     std::vector<Endpoint*> _worst_endpoints(size_t);
@@ -304,7 +303,7 @@ class Timer {
     void _spur(Endpoint&, size_t, PathHeap&) const;
     void _spur(PfxtCache&, const PfxtNode&) const;
     void _flattern_liberty();
-    void _update_arc2ftid();
+    void _update_arc2ftid(std::vector<unsigned>& arc2ftid);
     void _dump_graph(std::ostream&) const;
     void _dump_taskflow(std::ostream&) const;
     void _dump_cell(std::ostream&, const std::string&, Split) const;

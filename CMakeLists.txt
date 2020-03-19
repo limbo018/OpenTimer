@@ -180,6 +180,7 @@ add_library(OpenTimer ${OT_CPP})
 set(OT_CUDA
   ot/cuda/rct.cu
   ot/cuda/toposort.cu
+  ot/cuda/prop.cu
 )
 
 cuda_include_directories(OpenTimerCUDA ${CMAKE_CURRENT_SOURCE_DIR}/ot/cuda/cub)

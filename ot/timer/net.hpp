@@ -33,6 +33,7 @@ class RctNode {
     float cap  (Split, Tran) const;
     float slew (Split, Tran, float) const;
     float delay(Split, Tran) const;
+    float impulse(Split, Tran) const;
 
   private:
 
@@ -108,6 +109,7 @@ class Rct {
     float total_ncap() const;
     float slew(const std::string&, Split, Tran, float) const;
     float delay(const std::string&, Split, Tran) const;
+    float impulse(const std::string&, Split, Tran) const;
 
     inline size_t num_nodes() const;
     inline size_t num_edges() const;
@@ -179,6 +181,7 @@ class FlatRct {
 
 public:
   FlatRct() = default;
+  float impulse(int, Split, Tran) const;
   float slew(int, Split, Tran, float) const;
   float delay(int, Split, Tran) const;
 
@@ -233,6 +236,7 @@ class Net {
 
     std::optional<float> _slew(Split, Tran, float, Pin&) const;
     std::optional<float> _delay(Split, Tran, Pin&) const;
+    std::optional<float> _impulse(Split, Tran, Pin&) const;
     
     void _update_rc_timing();
     void _update_rc_timing_flat();
