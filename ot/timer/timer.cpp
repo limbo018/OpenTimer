@@ -1002,8 +1002,9 @@ void Timer::_build_prop_tasks_cuda() {
   std::vector<int> edgelist_start(n + 1, 0);
   std::vector<int> edgelist;
   _prop_frontiers.emplace(n, 0);
+  _prop_frontiers_ends.emplace();
   std::vector<int> &frontiers = *_prop_frontiers;
-  std::vector<int> frontiers_ends;
+  std::vector<int> &frontiers_ends = *_prop_frontiers_ends;
   int first_size = 0;
 
   OT_LOGI("bptc I - IV");
@@ -1073,9 +1074,28 @@ void Timer::_build_prop_tasks_cuda() {
 
   OT_LOGI("bptc VI", "  sz ", frontiers_ends.size());
 
+  // need to be rewritten to build the task, here is a pseudo code
+
+  // TASK 1
+  // [this] () { _fprop_cuda_init() }
+
+  // TASK 2  ( after 1 )
+  // parallel for pins: [this] (Pin &pin) { _fprop_cuda_init_pin(pin); }
+
+  // TASK 3  ( after 1 )
+  // allocate memory for arcs in every level
+  // in each level, net arcs and cell arcs are stored independently
+  // don't know how to write an efficient one...
+
+  // TASK 4  ( after 2, 3 )
+  // [this] () { _fprop_cuda_action(); }
+
+  // TASK 5  ( after 4 )
+  // parallel for pins: [this] (Pin &pin) { _fprop_cuda_writeback_pin(pin); }
+
   // prepare timing table and arc2ftid for propagation on GPU
   // Timing Graph here is constructed
-  _flattern_liberty();
+  _flatten_liberty();
   std::vector<unsigned> arc2ftid; 
   _update_arc2ftid(arc2ftid);
   std::vector<ArcCUDA> arcs (_arcs.size()); 
@@ -1287,163 +1307,6 @@ void Timer::_clear_prop_tasks() {
 
   _fprop_cands.clear();
   _bprop_cands.clear();
-}
-
-// Procedure: _flattern_liberty
-void Timer::_flattern_liberty() {
-
-  // here we clear all data to regenerate the data
-  _ft.num_tables = 0;
-  FOR_EACH_EL_RF_RF(el, irf, orf) {
-    _ft.t2ftid[el][irf][orf].clear();
-  }
-  _ft.slew_indices1.clear();
-  _ft.slew_indices2.clear();
-  _ft.slew_table.clear();
-  _ft.slew_indices1_start.clear();
-  _ft.slew_indices2_start.clear();
-  _ft.slew_table_start.clear();
-  _ft.delay_indices1.clear();
-  _ft.delay_indices2.clear();
-  _ft.delay_table.clear();
-  _ft.delay_indices1_start.clear();
-  _ft.delay_indices2_start.clear();
-  _ft.delay_table_start.clear();
-  std::size_t slew_indices1_size = 0; 
-  std::size_t slew_indices2_size = 0; 
-  std::size_t slew_table_size = 0; 
-  std::size_t delay_indices1_size = 0; 
-  std::size_t delay_indices2_size = 0; 
-  std::size_t delay_table_size = 0; 
-
-  OT_LOGI("flatterning celllib timing arcs ...");
-
-  // calculate slew length and delay length
-  FOR_EACH_EL_IF(el, _celllib[el]) {
-    
-    auto& celllib = *_celllib[el];
-    for(const auto& cell : celllib.cells) {
-      for(const auto& cp : cell.second.cellpins) {
-        for(const auto& t : cp.second.timings) {
-          FOR_EACH_RF_RF_IF(irf, orf, t.is_transition_defined(irf, orf)) {
-            
-            assert(_ft.t2ftid[el][irf][orf].find(&t) == _ft.t2ftid[el][irf][orf].end());
-            auto& t2ftid = _ft.t2ftid[el][irf][orf];
-            t2ftid[&t] = _ft.num_tables++;
-
-            const Lut* slut {nullptr};
-            const Lut* dlut {nullptr};
-            
-            // slew and delay
-            switch(orf) {
-              case RISE:
-                slut = t.rise_transition ? &(t.rise_transition.value()) : nullptr;
-                dlut = t.cell_rise ? &(t.cell_rise.value()) : nullptr;
-              break;
-
-              case FALL:
-                slut = t.fall_transition ? &(t.fall_transition.value()) : nullptr;
-                dlut = t.cell_fall ? &(t.cell_fall.value()) : nullptr;
-              break;
-            }
-
-            if(slut != nullptr) {
-              slew_indices1_size += slut->indices1.size(); 
-              slew_indices2_size += slut->indices2.size(); 
-              slew_table_size += slut->table.size();
-            }
-
-            if(dlut != nullptr) {
-              delay_indices1_size += dlut->indices1.size(); 
-              delay_indices2_size += dlut->indices2.size(); 
-              delay_table_size += dlut->table.size();
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // flattern the table
-
-  // must initialize all to zero 
-  _ft.slew_indices1_start.assign(_ft.num_tables+1, 0);
-  _ft.slew_indices2_start.assign(_ft.num_tables+1, 0);
-  _ft.slew_table_start.assign(_ft.num_tables+1, 0);
-  _ft.delay_indices1_start.assign(_ft.num_tables+1, 0);
-  _ft.delay_indices2_start.assign(_ft.num_tables+1, 0);
-  _ft.delay_table_start.assign(_ft.num_tables+1, 0);
-
-  _ft.slew_indices1.reserve(slew_indices1_size);  
-  _ft.slew_indices2.reserve(slew_indices2_size);  
-  _ft.slew_table.reserve(slew_table_size);           
-  _ft.delay_indices1.reserve(delay_indices1_size);  
-  _ft.delay_indices2.reserve(delay_indices2_size);  
-  _ft.delay_table.reserve(delay_table_size);           
-
-  FOR_EACH_EL_IF(el, _celllib[el]) {
-    
-    auto& celllib = *_celllib[el];
-    for(const auto& cell : celllib.cells) {
-
-      for(const auto& cp : cell.second.cellpins) {
-        for(const auto& t : cp.second.timings) {
-          FOR_EACH_RF_RF_IF(irf, orf, t.is_transition_defined(irf, orf)) {
-            
-            unsigned table_id = _ft.t2ftid[el][irf][orf].at(&t);
-
-            const Lut* slut {nullptr};
-            const Lut* dlut {nullptr};
-            
-            // slew and delay
-            switch(orf) {
-              case RISE:
-                slut = t.rise_transition ? &(t.rise_transition.value()) : nullptr;
-                dlut = t.cell_rise ? &(t.cell_rise.value()) : nullptr;
-              break;
-
-              case FALL:
-                slut = t.fall_transition ? &(t.fall_transition.value()) : nullptr;
-                dlut = t.cell_fall ? &(t.cell_fall.value()) : nullptr;
-              break;
-            }
-
-            if(slut != nullptr) {
-              _ft.slew_indices1.insert(_ft.slew_indices1.end(), slut->indices1.begin(), slut->indices1.end());
-              _ft.slew_indices2.insert(_ft.slew_indices2.end(), slut->indices2.begin(), slut->indices2.end());
-              _ft.slew_table.insert(_ft.slew_table.end(), slut->table.begin(), slut->table.end());
-              // temporarily record the table sizes 
-              _ft.slew_indices1_start [table_id + 1] = slut->indices1.size();
-              _ft.slew_indices2_start [table_id + 1] = slut->indices2.size();
-              _ft.slew_table_start    [table_id + 1] = slut->table.size();
-            }
-
-            if(dlut != nullptr) {
-              _ft.delay_indices1.insert(_ft.delay_indices1.end(), dlut->indices1.begin(), dlut->indices1.end());
-              _ft.delay_indices2.insert(_ft.delay_indices2.end(), dlut->indices2.begin(), dlut->indices2.end());
-              _ft.delay_table.insert(_ft.delay_table.end(), dlut->table.begin(), dlut->table.end());
-              // temporarily record the table sizes 
-              _ft.delay_indices1_start[table_id + 1] = dlut->indices1.size();
-              _ft.delay_indices2_start[table_id + 1] = dlut->indices2.size();
-              _ft.delay_table_start   [table_id + 1] = dlut->table.size();
-            }
-          }
-        }
-      }
-    }
-  }
-    
-  // scan to compute the prefix sum, which is the offset 
-  for(size_t i = 1; i <= _ft.num_tables; ++i) {
-    _ft.slew_indices1_start[i]  += _ft.slew_indices1_start[i-1];
-    _ft.slew_indices2_start[i]  += _ft.slew_indices2_start[i-1];
-    _ft.slew_table_start[i]     += _ft.slew_table_start[i-1];
-    _ft.delay_indices1_start[i] += _ft.delay_indices1_start[i-1];
-    _ft.delay_indices2_start[i] += _ft.delay_indices2_start[i-1];
-    _ft.delay_table_start[i]    += _ft.delay_table_start[i-1];
-  }
-  
-  OT_LOGI(_ft.num_tables, " celllib timing arcs flatterned");
 }
 
 void Timer::_update_arc2ftid(std::vector<unsigned>& arc2ftid) {

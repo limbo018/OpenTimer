@@ -13,6 +13,7 @@
 #include <ot/timer/pfxt.hpp>
 #include <ot/timer/cppr.hpp>
 #include <ot/timer/scc.hpp>
+#include <ot/timer/prop_cuda.hpp>
 #include <ot/static/logger.hpp>
 #include <ot/spef/spef.hpp>
 #include <ot/verilog/verilog.hpp>
@@ -21,44 +22,6 @@
 
 namespace ot {
   
-// This is the dumpped timing info
-struct HierTable {
-
-  unsigned id;                        // [0, num_hts)
-  
-  std::vector<float> slew_indices1;   // input slew
-  std::vector<float> slew_indices2;   // output load
-  std::vector<float> slew_table;      // slew table
-  
-  std::vector<float> delay_indices1;  // input slew
-  std::vector<float> delay_indices2;  // output load
-  std::vector<float> delay_table;     // delay table
-   
-};
-
-struct FlatTable {
-
-  unsigned num_tables; // number of valid tables, only count for existing ones 
-
-  std::unordered_map<const Timing*, unsigned> t2ftid[MAX_SPLIT][MAX_TRAN][MAX_TRAN];
-
-  std::vector<float> slew_indices1;  
-  std::vector<float> slew_indices2;  
-  std::vector<float> slew_table;           
-  
-  std::vector<float> delay_indices1;  
-  std::vector<float> delay_indices2;  
-  std::vector<float> delay_table;           
-
-  std::vector<unsigned> slew_indices1_start;
-  std::vector<unsigned> slew_indices2_start;
-  std::vector<unsigned> slew_table_start;
-
-  std::vector<unsigned> delay_indices1_start;
-  std::vector<unsigned> delay_indices2_start;
-  std::vector<unsigned> delay_table_start;
-};
-
 // Class: Timer
 class Timer {
 
@@ -194,6 +157,7 @@ class Timer {
 
     std::optional<FlatRctStorage> _flat_rct_stor;
     std::optional<std::vector<int>> _prop_frontiers;
+    std::optional<std::vector<int>> _prop_frontiers_ends;
  
     std::list<Test> _tests;
     std::list<Arc> _arcs;
@@ -218,7 +182,8 @@ class Timer {
     std::vector<Pin*> _idx2pin;
     std::vector<Arc*> _idx2arc;
   
-    FlatTable _ft;
+    // FlatTable _ft;
+    std::optional<PropStorage> _prop_stor;
 
     std::vector<Endpoint*> _worst_endpoints(size_t);
     std::vector<Endpoint*> _worst_endpoints(size_t, Split);
@@ -249,6 +214,11 @@ class Timer {
     void _fprop_at(Pin&);
     void _fprop_test(Pin&);
     void _bprop_rat(Pin&);
+    void _fprop_cuda_init();
+    void _fprop_cuda_init_pin(Pin&);
+    //void _fprop_cuda_init_arc(??)
+    void _fprop_cuda_action();
+    void _fprop_cuda_writeback_pin(Pin&);
     void _build_prop_cands();
     void _build_fprop_cands(Pin&);
     void _build_bprop_cands(Pin&);
@@ -259,7 +229,7 @@ class Timer {
     void _run_prop_tasks_sequential();
     void _build_prop_tasks_cuda();
     void _clear_rc_timing_tasks();
-    void _read_spef(spef::Spef&);;
+    void _read_spef(spef::Spef&);
     void _verilog(vlog::Module&);
     void _timing(tau15::Timing&);
     void _read_sdc(sdc::SDC&);
@@ -302,7 +272,7 @@ class Timer {
     void _insert_full_timing_frontiers();
     void _spur(Endpoint&, size_t, PathHeap&) const;
     void _spur(PfxtCache&, const PfxtNode&) const;
-    void _flattern_liberty();
+    void _flatten_liberty();
     void _update_arc2ftid(std::vector<unsigned>& arc2ftid);
     void _dump_graph(std::ostream&) const;
     void _dump_taskflow(std::ostream&) const;

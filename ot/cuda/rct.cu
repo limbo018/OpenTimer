@@ -6,7 +6,6 @@
 #include <ot/timer/_prof.hpp>
 
 #define MAX_SPLIT_TRAN 4 
-const int chunk = 64;
 
 template <typename RctCUDAType>
 __global__ void compute_net_timing(RctCUDAType rct) {
@@ -359,6 +358,8 @@ __global__ void prepare_res_cap(RctEdgeArrayCUDA data_gpu) {
 }
 
 void rct_bfs_and_compute_cuda(RctEdgeArrayCUDA data_cpu) {
+  const int chunk = 64;
+  
   // copy data 
   _prof::setup_timer("rct_bfs_and_compute_cuda__copy_c2g");
   RctEdgeArrayCUDA data_gpu = copy_cpu_to_gpu(data_cpu); 
