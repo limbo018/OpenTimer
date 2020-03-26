@@ -304,7 +304,7 @@ class Timer {
     void _spur(Endpoint&, size_t, PathHeap&) const;
     void _spur(PfxtCache&, const PfxtNode&) const;
     void _flattern_liberty();
-    void _update_arc2ftid(std::vector<int>& arc2ftid);
+    //void _update_arc2ftid(std::vector<int>& arc2ftid);
     void _dump_graph(std::ostream&) const;
     void _dump_taskflow(std::ostream&) const;
     void _dump_cell(std::ostream&, const std::string&, Split) const;

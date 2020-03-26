@@ -1004,6 +1004,16 @@ void Timer::_build_prop_tasks_cuda() {
   fanin_arc_graph.set_num_nodes(n);
   //fanout_arc_graph.set_num_nodes(n);
 
+  //////////// !!! CAUSION !!!! ///////////
+  // Yibo: I try to make both toposort and prop_cuda use the same data 
+  // such that the overhead for data copy can be minimized. 
+  // Meanwhile, I try to add aynchronious copy with --default-stream=per-thread 
+  // setting to NVCC. It is not yet verified if this works or not. 
+  // The idea is that multiple streams will be used if cuda kernels are invoked inside a CPU thread. 
+  // Maybe manually manage the streams will give better performance. 
+  // This code is rather crappy for now. 
+  // In the future, we shoudl have a better way to manage CPU and GPU data copies. 
+  /////////////////////////////////////////
   PropCUDA prop_data_cpu;
   PropCUDA prop_data_cuda;
   std::vector<int> fanout_degrees(n, 0);
@@ -1696,37 +1706,37 @@ void Timer::_flattern_liberty() {
   OT_LOGI(_ft.num_tables, " celllib timing arcs flatterned");
 }
 
-void Timer::_update_arc2ftid(std::vector<int>& arc2ftid) {
-
-  arc2ftid.assign(_arcs.size() * (MAX_SPLIT_TRAN * MAX_TRAN), std::numeric_limits<int>::max());
-  auto encode = [](int arc_id, int el, int irf, int orf) {
-      return arc_id * (MAX_SPLIT_TRAN * MAX_TRAN) + el * (MAX_TRAN * MAX_TRAN)
-          + irf * MAX_TRAN + orf; 
-  };
-
-  // map the id to each arc
-  for(auto& arc : _arcs) {
-    //std::cout << "arc " << arc._from._name << "->" << arc._to._name << " flat table mapping:\n";
-    FOR_EACH_EL_RF_RF(el, irf, orf) {
-      //std::cout << "  " << to_string(el) << ' ' << to_string(irf) << ' ' << to_string(orf) << ' ';
-      if(auto tv = std::get_if<TimingView>(&arc._handle); tv) { // cell arc 
-        const auto t = (*tv)[el];
-        if(t != nullptr) {
-          if(t->is_transition_defined(irf, orf)) {
-            assert(_ft.t2ftid[el][irf][orf].find(t) != _ft.t2ftid[el][irf][orf].end());
-            if ((orf == Tran::RISE && t->rise_transition) 
-                    || (orf == Tran::FALL && t->fall_transition)) {
-                arc2ftid.at(encode(arc.idx(), el, irf, orf)) = _ft.t2ftid[el][irf][orf].at(t);
-            }
-          }
-          else {
-            assert(_ft.t2ftid[el][irf][orf].find(t) == _ft.t2ftid[el][irf][orf].end());
-          }
-        }
-      }
-    }
-  }
-}
+//void Timer::_update_arc2ftid(std::vector<int>& arc2ftid) {
+//
+//  arc2ftid.assign(_arcs.size() * (MAX_SPLIT_TRAN * MAX_TRAN), std::numeric_limits<int>::max());
+//  auto encode = [](int arc_id, int el, int irf, int orf) {
+//      return arc_id * (MAX_SPLIT_TRAN * MAX_TRAN) + el * (MAX_TRAN * MAX_TRAN)
+//          + irf * MAX_TRAN + orf; 
+//  };
+//
+//  // map the id to each arc
+//  for(auto& arc : _arcs) {
+//    //std::cout << "arc " << arc._from._name << "->" << arc._to._name << " flat table mapping:\n";
+//    FOR_EACH_EL_RF_RF(el, irf, orf) {
+//      //std::cout << "  " << to_string(el) << ' ' << to_string(irf) << ' ' << to_string(orf) << ' ';
+//      if(auto tv = std::get_if<TimingView>(&arc._handle); tv) { // cell arc 
+//        const auto t = (*tv)[el];
+//        if(t != nullptr) {
+//          if(t->is_transition_defined(irf, orf)) {
+//            assert(_ft.t2ftid[el][irf][orf].find(t) != _ft.t2ftid[el][irf][orf].end());
+//            if ((orf == Tran::RISE && t->rise_transition) 
+//                    || (orf == Tran::FALL && t->fall_transition)) {
+//                arc2ftid.at(encode(arc.idx(), el, irf, orf)) = _ft.t2ftid[el][irf][orf].at(t);
+//            }
+//          }
+//          else {
+//            assert(_ft.t2ftid[el][irf][orf].find(t) == _ft.t2ftid[el][irf][orf].end());
+//          }
+//        }
+//      }
+//    }
+//  }
+//}
 
 // Function: update_timing
 // Perform comprehensive timing update: 
