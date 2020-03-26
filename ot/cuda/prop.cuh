@@ -56,6 +56,8 @@ struct PropCUDA {
     PinInfoCUDA* pin_ats = nullptr; ///< length of num_pins * MAX_SPLIT_TRAN, both input and output  
     ArcInfo* arc_infos = nullptr; ///< length of num_arcs, combine net arcs and cell arcs together to save memory 
 
+    /// init on cuda 
+    void init_device(); 
     /// destroy on cuda 
     void destroy_device();
 
@@ -78,8 +80,6 @@ struct PropCUDA {
 void prop_cuda(PropCUDA& data_cpu, PropCUDA& data_cuda); 
 
 void toposort_compute_cuda(
-        int first_size, PropCUDA& prop_data_cpu, PropCUDA& prop_data_cuda, 
-        //int n, int num_edges, int first_size,
-        //int *edgelist_start, FlatArc *edgelist, int *out, int *frontiers,
+        PropCUDA& prop_data_cpu, PropCUDA& prop_data_cuda, 
         std::vector<int> &frontiers_ends
   );

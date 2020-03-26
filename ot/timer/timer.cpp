@@ -1016,6 +1016,7 @@ void Timer::_build_prop_tasks_cuda() {
   /////////////////////////////////////////
   PropCUDA prop_data_cpu;
   PropCUDA prop_data_cuda;
+  prop_data_cuda.init_device();
   std::vector<int> fanout_degrees(n, 0);
   //std::vector<int> edgelist_start(n + 1, 0);
   //std::vector<int> edgelist;
@@ -1023,7 +1024,6 @@ void Timer::_build_prop_tasks_cuda() {
   _prop_frontiers_ends.emplace();
   std::vector<int> &frontiers = *_prop_frontiers;
   std::vector<int> &frontiers_ends = *_prop_frontiers_ends;
-  int first_size = 0;
 
   OT_LOGI("bptc I - IV");
 
@@ -1118,37 +1118,17 @@ void Timer::_build_prop_tasks_cuda() {
   
   //OT_LOGI("bptc IV");
 
-  // init default frontier
-  auto init_frontier = _tf.emplace([&](){
-              first_size = 0;
-              for(auto pin: _fprop_cands) {
-                if(!fanout_degrees[pin->_idx]) frontiers[first_size++] = pin->_idx;
-              }
-              frontiers_ends.push_back(0);
-              frontiers_ends.push_back(first_size);
-
-              //for (int i = 0; i < fanin_arc_graph.num_nodes; ++i) {
-              //  printf("%d: {", i);
-              //  for (int j = fanin_arc_graph.adjacency_list_start[i]; j < fanin_arc_graph.adjacency_list_start[i + 1]; ++j) {
-              //    printf("%d (%d), ", fanin_arc_graph.adjacency_list[j].other, fanin_arc_graph.adjacency_list[j].idx);
-              //  }
-              //  printf("}\n");
-              //}
-          });
-  init_frontier.succeed(fanin_put_edges_T);
-
   auto copy_frontiers = _tf.emplace([&](){
           prop_data_cpu.frontiers = frontiers.data();
           prop_data_cuda.copy_frontiers(frontiers);
           });
-  copy_frontiers.succeed(init_frontier); 
 
   OT_LOGI("bptc V");
 
   // Step 2: call GPU function
   auto toposort = _tf.emplace([&](){
           toposort_compute_cuda(
-                  first_size, prop_data_cpu, prop_data_cuda, 
+                  prop_data_cpu, prop_data_cuda, 
                   //edgelist_start.data(), edgelist.data(), out.data(),
                   frontiers_ends);
           });
@@ -1172,9 +1152,9 @@ void Timer::_build_prop_tasks_cuda() {
   // prepare timing table and arc2ftid for propagation on GPU
   // Timing Graph here is constructed
   auto prepare_timing_table = _tf.emplace([&](){
-          _prof::setup_timer("_flattern_liberty"); 
-          _flattern_liberty();
-          _prof::stop_timer("_flattern_liberty"); 
+          _prof::setup_timer("_flatten_liberty"); 
+          _flatten_liberty();
+          _prof::stop_timer("_flatten_liberty"); 
           _prof::setup_timer("_update_arc2ftid");
           });
 
@@ -1276,23 +1256,25 @@ void Timer::_build_prop_tasks_cuda() {
 
   auto [init_pin_slews_S, init_pin_slews_T] = _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
       // PI
-      FOR_EACH_EL_RF(el, rf) {
-        auto& pin_slew = pin_slews[pin->idx() * MAX_SPLIT_TRAN + el * MAX_TRAN + rf];
-        auto& pin_at = pin_ats[pin->idx() * MAX_SPLIT_TRAN + el * MAX_TRAN + rf];
-        if (el == Split::MAX) {
-          pin_slew.value = std::numeric_limits<float>::lowest(); 
-          pin_at.value = std::numeric_limits<float>::lowest(); 
-        } else {
-          pin_slew.value = std::numeric_limits<float>::max(); 
-          pin_at.value = std::numeric_limits<float>::max(); 
-        }
-      }
       if(auto pi = pin->primary_input(); pi) {
         FOR_EACH_EL_RF_IF(el, rf, pi->_slew[el][rf]) {
           auto& pin_slew = pin_slews[pin->idx() * MAX_SPLIT_TRAN + el * MAX_TRAN + rf];
           auto& pin_at = pin_ats[pin->idx() * MAX_SPLIT_TRAN + el * MAX_TRAN + rf];
           pin_slew.value = *(pi->_slew[el][rf]);
           pin_at.value = 0;
+        }
+      }
+      else {
+        FOR_EACH_EL_RF(el, rf) {
+          auto& pin_slew = pin_slews[pin->idx() * MAX_SPLIT_TRAN + el * MAX_TRAN + rf];
+          auto& pin_at = pin_ats[pin->idx() * MAX_SPLIT_TRAN + el * MAX_TRAN + rf];
+          if (el == Split::MAX) {
+            pin_slew.value = std::numeric_limits<float>::lowest(); 
+            pin_at.value = std::numeric_limits<float>::lowest(); 
+          } else {
+            pin_slew.value = std::numeric_limits<float>::max(); 
+            pin_at.value = std::numeric_limits<float>::max(); 
+          }
         }
       }
     }, 32);
@@ -1316,7 +1298,7 @@ void Timer::_build_prop_tasks_cuda() {
   run_prop.succeed(copy_timing_table, copy_arc2ftid, copy_pin_loads_arc_infos, copy_pin_slews_ats, copy_frontiers_ends);
   //run_prop.succeed(fanout_put_edges_T);
   
-  auto [copy_prop_S, copy_prop_T]  = _tf.parallel_for(0, (int)_pins.size(), 1, [&](int idx) {
+  auto [copy_slew_at_S, copy_slew_at_T]  = _tf.parallel_for(0, (int)_pins.size(), 1, [&](int idx) {
               Pin *pin = _idx2pin[idx];
               FOR_EACH_EL_RF(el, rf) {
                   int offset = pin->idx() * MAX_SPLIT_TRAN + el * MAX_SPLIT + rf;
@@ -1326,9 +1308,9 @@ void Timer::_build_prop_tasks_cuda() {
                   pin->_at[el][rf].emplace(_idx2arc[pin_at.from_arcidx], (Split)pin_at.from_el, (Tran)pin_at.from_rf, pin_at.value);
               }
           }, 32);
-  copy_prop_S.succeed(run_prop);
+  copy_slew_at_S.succeed(run_prop);
 
-  auto [retrieve_delay_S, retrieve_delay_T]  = _tf.parallel_for(0, (int)_arcs.size(), 1, [&](int idx) {
+  auto [copy_delay_S, copy_delay_T]  = _tf.parallel_for(0, (int)_arcs.size(), 1, [&](int idx) {
               Arc *arc = _idx2arc[idx];
               if (arc->is_cell_arc()) {
                 auto& cell_arc = arc_infos[arc->idx()].cell_arc;
@@ -1346,7 +1328,7 @@ void Timer::_build_prop_tasks_cuda() {
                   }
               }
           }, 32);
-  retrieve_delay_S.succeed(copy_prop_T);
+  copy_delay_S.succeed(run_prop);
 
   _prof::setup_timer("entire_prop");
   _ex.run(_tf).wait();
@@ -1549,8 +1531,8 @@ void Timer::_clear_prop_tasks() {
   _bprop_cands.clear();
 }
 
-// Procedure: _flattern_liberty
-void Timer::_flattern_liberty() {
+// Procedure: _flatten_liberty
+void Timer::_flatten_liberty() {
 
   // here we clear all data to regenerate the data
   _ft.num_tables = 0;
@@ -1576,7 +1558,7 @@ void Timer::_flattern_liberty() {
   std::size_t delay_indices2_size = 0; 
   std::size_t delay_table_size = 0; 
 
-  OT_LOGI("flatterning celllib timing arcs ...");
+  OT_LOGI("flattening celllib timing arcs ...");
 
   // calculate slew length and delay length
   FOR_EACH_EL_IF(el, _celllib[el]) {
@@ -1624,7 +1606,7 @@ void Timer::_flattern_liberty() {
     }
   }
 
-  // flattern the table
+  // flatten the table
 
   // must initialize all to zero 
   _ft.slew_indices1_start.assign(_ft.num_tables+1, 0);
@@ -1694,7 +1676,7 @@ void Timer::_flattern_liberty() {
   }
     
   // scan to compute the prefix sum, which is the offset 
-  for(size_t i = 1; i <= _ft.num_tables; ++i) {
+  for(int i = 1; i <= _ft.num_tables; ++i) {
     _ft.slew_indices1_start[i]  += _ft.slew_indices1_start[i-1];
     _ft.slew_indices2_start[i]  += _ft.slew_indices2_start[i-1];
     _ft.slew_table_start[i]     += _ft.slew_table_start[i-1];
@@ -1703,7 +1685,7 @@ void Timer::_flattern_liberty() {
     _ft.delay_table_start[i]    += _ft.delay_table_start[i-1];
   }
   
-  OT_LOGI(_ft.num_tables, " celllib timing arcs flatterned");
+  OT_LOGI(_ft.num_tables, " celllib timing arcs flattened");
 }
 
 //void Timer::_update_arc2ftid(std::vector<int>& arc2ftid) {

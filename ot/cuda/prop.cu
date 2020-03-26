@@ -19,6 +19,9 @@ enum Tran {
   FALL = 1
 };
 
+#define NUM_STREAMS 11
+cudaStream_t streams[NUM_STREAMS]; 
+
 #define MAX_SPLIT_TRAN 4 
 #define MAX_SPLIT 2
 #define MAX_TRAN 2
@@ -58,6 +61,12 @@ void print(FlatTableCUDA const& ft, const char* msg) {
     printf("}\n");
 }
 
+void PropCUDA::init_device() {
+    for (int i = 0; i < NUM_STREAMS; ++i) {
+        cudaStreamCreate(&streams[i]);
+    }
+}
+
 void PropCUDA::destroy_device() {
     fanin_graph.destroy_device();
     slew_ft.destroy_device(); 
@@ -71,12 +80,16 @@ void PropCUDA::destroy_device() {
     destroyCUDA(pin_slews); 
     destroyCUDA(pin_ats); 
     destroyCUDA(arc_infos); 
+
+    for (int i = 0; i < NUM_STREAMS; ++i) {
+        cudaStreamDestroy(streams[i]);
+    }
 }
 
 void PropCUDA::copy2device(PropCUDA& rhs) const {
-    fanin_graph.copy2device(rhs.fanin_graph); 
-    slew_ft.copy2device(rhs.slew_ft); 
-    delay_ft.copy2device(rhs.delay_ft); 
+    fanin_graph.copy2device(rhs.fanin_graph, 0); 
+    slew_ft.copy2device(rhs.slew_ft, 1); 
+    delay_ft.copy2device(rhs.delay_ft, 2); 
 
     rhs.num_levels = num_levels; 
     rhs.num_pins = num_pins; 
@@ -89,52 +102,53 @@ void PropCUDA::copy2device(PropCUDA& rhs) const {
     allocateCopyCUDA(rhs.pin_slews, pin_slews, num_pins * MAX_SPLIT_TRAN); 
     allocateCopyCUDA(rhs.pin_ats, pin_ats, num_pins * MAX_SPLIT_TRAN); 
     allocateCopyCUDA(rhs.arc_infos, arc_infos, num_arcs);
+    checkCUDA(cudaDeviceSynchronize()); 
 }
 
 void PropCUDA::copy_fanin_graph(FlatArcGraphCUDA const& host_data) {
-    host_data.copy2device(fanin_graph);
+    host_data.copy2device(fanin_graph, 0);
 }
 
 void PropCUDA::copy_slew_ft(FlatTableCUDA const& host_data) {
-    host_data.copy2device(this->slew_ft); 
+    host_data.copy2device(this->slew_ft, 1); 
 }
 
 void PropCUDA::copy_delay_ft(FlatTableCUDA const& host_data) {
-    host_data.copy2device(this->delay_ft);
+    host_data.copy2device(this->delay_ft, 2);
 }
 
 void PropCUDA::copy_fanout_degrees(std::vector<int> const& host_fanout_degrees) {
-    allocateCopyCUDA(fanout_degrees, host_fanout_degrees.data(), host_fanout_degrees.size());
+    allocateCopyCUDAAsync(fanout_degrees, host_fanout_degrees.data(), host_fanout_degrees.size(), streams[3]);
 }
 
 void PropCUDA::copy_pin_loads(std::vector<float> const& host_pin_loads) {
-    allocateCopyCUDA(pin_loads, host_pin_loads.data(), host_pin_loads.size());
+    allocateCopyCUDAAsync(pin_loads, host_pin_loads.data(), host_pin_loads.size(), streams[4]);
 }
 
 void PropCUDA::copy_arc2ftid(std::vector<int> const& host_arc2ftid) {
-    allocateCopyCUDA(arc2ftid, host_arc2ftid.data(), host_arc2ftid.size());
+    allocateCopyCUDAAsync(arc2ftid, host_arc2ftid.data(), host_arc2ftid.size(), streams[5]);
 }
 
 void PropCUDA::copy_frontiers(std::vector<int> const& host_frontiers) {
-    allocateCopyCUDA(frontiers, host_frontiers.data(), host_frontiers.size()); 
+    allocateCopyCUDAAsync(frontiers, host_frontiers.data(), host_frontiers.size(), streams[6]); 
     num_pins = host_frontiers.size();
 }
 
 void PropCUDA::copy_frontiers_ends(std::vector<int> const& host_frontiers_ends) {
-    allocateCopyCUDA(frontiers_ends, host_frontiers_ends.data(), host_frontiers_ends.size()); 
+    allocateCopyCUDAAsync(frontiers_ends, host_frontiers_ends.data(), host_frontiers_ends.size(), streams[7]); 
     num_levels = host_frontiers_ends.size() - 1;
 }
 
 void PropCUDA::copy_pin_slews(std::vector<PinInfoCUDA> const& host_pin_slews) {
-    allocateCopyCUDA(pin_slews, host_pin_slews.data(), host_pin_slews.size());
+    allocateCopyCUDAAsync(pin_slews, host_pin_slews.data(), host_pin_slews.size(), streams[8]);
 }
 
 void PropCUDA::copy_pin_ats(std::vector<PinInfoCUDA> const& host_pin_ats) {
-    allocateCopyCUDA(pin_ats, host_pin_ats.data(), host_pin_ats.size());
+    allocateCopyCUDAAsync(pin_ats, host_pin_ats.data(), host_pin_ats.size(), streams[9]);
 }
 
 void PropCUDA::copy_arc_infos(std::vector<ArcInfo> const& host_arc_infos) {
-    allocateCopyCUDA(arc_infos, host_arc_infos.data(), host_arc_infos.size());
+    allocateCopyCUDAAsync(arc_infos, host_arc_infos.data(), host_arc_infos.size(), streams[10]);
     num_arcs = host_arc_infos.size();
 }
 

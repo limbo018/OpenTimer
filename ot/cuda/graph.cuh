@@ -53,5 +53,5 @@ struct FlatArcGraphCUDA {
 
     /// copy to device, the object itself must be on host 
     /// Assume rhs has not been allocated yet 
-    void copy2device(FlatArcGraphCUDA& rhs) const; 
+    void copy2device(FlatArcGraphCUDA& rhs, int stream_id) const; 
 };
