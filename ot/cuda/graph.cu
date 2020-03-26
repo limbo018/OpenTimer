@@ -14,6 +14,7 @@ void FlatArcGraphCUDA::destroy_device() {
 
 void FlatArcGraphCUDA::copy2device(FlatArcGraphCUDA& rhs) const {
     rhs.num_nodes = num_nodes; 
+    rhs.num_edges = num_edges;
     allocateCopyCUDA(rhs.adjacency_list, adjacency_list, adjacency_list_start[num_nodes]); 
     allocateCopyCUDA(rhs.adjacency_list_start, adjacency_list_start, num_nodes + 1); 
 }

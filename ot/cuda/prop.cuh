@@ -6,6 +6,7 @@
 
 #pragma once 
 
+#include <vector>
 #include "ot/cuda/graph.cuh"
 #include "ot/cuda/flat_table.cuh"
 
@@ -16,9 +17,22 @@ struct PinInfoCUDA {
     unsigned char from_rf; 
 };
 
+struct NetArcInfo {
+    float delays[4]; ///< MAX_SPLIT_TRAN 
+    float impulses[4]; ///< MAX_SPLIT_TRAN 
+};
+
+struct CellArcInfo {
+    float delays[8]; ///< MAX_SPLIT_TRAN * MAX_TRAN
+};
+
+/// combine net arc and cell arc together 
+union ArcInfo {
+    NetArcInfo net_arc; 
+    CellArcInfo cell_arc; 
+};
+
 struct PropCUDA {
-    float* net_arc_delays = nullptr; ///< length of num_arcs * MAX_SPLIT_TRAN, only entries for net arcs are valid 
-    float* net_arc_impulses = nullptr; ///< length of num_arcs * MAX_SPLIT_TRAN, only entries for net arcs are valid 
     float* pin_loads = nullptr; ///< length of num_pins * MAX_SPLIT_TRAN, only entries for the driver of net arcs are valid; 
                             ///< we only need the loads of output pin of a cell, which is the driver/root of a net
     int* arc2ftid = nullptr; ///< length of num_arcs * {MAX_SPLIT * MAX_TRAN * MAX_TRAN}; 
@@ -36,9 +50,11 @@ struct PropCUDA {
     FlatTableCUDA slew_ft;
     FlatTableCUDA delay_ft;
 
+    int* fanout_degrees; ///< length of num_pins, for toposort, will be modified 
+
     PinInfoCUDA* pin_slews = nullptr; ///< length of num_pins * MAX_SPLIT_TRAN, both input and output 
     PinInfoCUDA* pin_ats = nullptr; ///< length of num_pins * MAX_SPLIT_TRAN, both input and output  
-    float* cell_arc_delays = nullptr; ///< length of num_arcs * MAX_SPLIT_TRAN * MAX_TRAN, output 
+    ArcInfo* arc_infos = nullptr; ///< length of num_arcs, combine net arcs and cell arcs together to save memory 
 
     /// destroy on cuda 
     void destroy_device();
@@ -46,6 +62,24 @@ struct PropCUDA {
     /// copy to device, the object itself must be on host 
     /// Assume rhs has not been allocated yet 
     void copy2device(PropCUDA& rhs) const;
+    void copy_fanin_graph(FlatArcGraphCUDA const& host_data);
+    void copy_slew_ft(FlatTableCUDA const& host_data);
+    void copy_delay_ft(FlatTableCUDA const& host_data);
+    void copy_fanout_degrees(std::vector<int> const& host_fanout_degrees); 
+    void copy_pin_loads(std::vector<float> const& host_pin_loads);
+    void copy_arc2ftid(std::vector<int> const& host_arc2ftid);
+    void copy_frontiers(std::vector<int> const& host_frontiers);
+    void copy_frontiers_ends(std::vector<int> const& host_frontiers_ends);
+    void copy_pin_slews(std::vector<PinInfoCUDA> const& host_pin_slews); 
+    void copy_pin_ats(std::vector<PinInfoCUDA> const& host_pin_ats); 
+    void copy_arc_infos(std::vector<ArcInfo> const& host_arc_infos);
 };
 
-void prop_cuda(PropCUDA& data_cpu); 
+void prop_cuda(PropCUDA& data_cpu, PropCUDA& data_cuda); 
+
+void toposort_compute_cuda(
+        int first_size, PropCUDA& prop_data_cpu, PropCUDA& prop_data_cuda, 
+        //int n, int num_edges, int first_size,
+        //int *edgelist_start, FlatArc *edgelist, int *out, int *frontiers,
+        std::vector<int> &frontiers_ends
+  );

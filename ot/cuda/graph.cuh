@@ -13,6 +13,7 @@ struct FlatGraph {
     std::vector<int> adjacency_list; ///< elements in the adjacency_list
     std::vector<int> adjacency_list_start; ///< length of num_nodes + 1, last element is the number of edges 
     int num_nodes; ///< number of nodes
+    int num_edges; ///< number of edges 
 
     void set_num_nodes(int n) {
         num_nodes = n;
@@ -32,6 +33,7 @@ struct FlatArcGraph {
     std::vector<FlatArc> adjacency_list; ///< elements in the adjacency_list
     std::vector<int> adjacency_list_start; ///< length of num_nodes + 1, last element is the number of arcs 
     int num_nodes; ///< number of nodes
+    int num_edges; ///< number of edges 
 
     void set_num_nodes(int n) {
         num_nodes = n;
@@ -44,6 +46,7 @@ struct FlatArcGraphCUDA {
     FlatArc* adjacency_list = nullptr; ///< elements in the adjacency_list
     int* adjacency_list_start = nullptr; ///< length of num_nodes + 1, last element is the number of arcs 
     int num_nodes; ///< number of nodes
+    int num_edges; ///< number of edges 
 
     /// destroy on cuda 
     void destroy_device();

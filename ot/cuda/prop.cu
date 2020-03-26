@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <ot/cuda/prop.cuh>
 #include "ot/cuda/utils.cuh"
+#include <ot/timer/_prof.hpp>
 
 enum Split {
   MIN = 0,
@@ -62,15 +63,14 @@ void PropCUDA::destroy_device() {
     slew_ft.destroy_device(); 
     delay_ft.destroy_device();
 
-    destroyCUDA(net_arc_delays); 
-    destroyCUDA(net_arc_impulses); 
+    destroyCUDA(fanout_degrees);
     destroyCUDA(pin_loads); 
     destroyCUDA(arc2ftid); 
     destroyCUDA(frontiers); 
     destroyCUDA(frontiers_ends); 
     destroyCUDA(pin_slews); 
     destroyCUDA(pin_ats); 
-    destroyCUDA(cell_arc_delays); 
+    destroyCUDA(arc_infos); 
 }
 
 void PropCUDA::copy2device(PropCUDA& rhs) const {
@@ -81,15 +81,61 @@ void PropCUDA::copy2device(PropCUDA& rhs) const {
     rhs.num_levels = num_levels; 
     rhs.num_pins = num_pins; 
     rhs.num_arcs = num_arcs; 
-    allocateCopyCUDA(rhs.net_arc_delays, net_arc_delays, num_arcs * MAX_SPLIT_TRAN);
-    allocateCopyCUDA(rhs.net_arc_impulses, net_arc_impulses, num_arcs * MAX_SPLIT_TRAN);
-    allocateCopyCUDA(rhs.pin_loads, pin_loads, num_arcs * MAX_SPLIT_TRAN);
+    allocateCopyCUDA(rhs.fanout_degrees, fanout_degrees, num_pins);
+    allocateCopyCUDA(rhs.pin_loads, pin_loads, num_pins * MAX_SPLIT_TRAN);
     allocateCopyCUDA(rhs.arc2ftid, arc2ftid, num_arcs * MAX_SPLIT_TRAN * MAX_TRAN);
     allocateCopyCUDA(rhs.frontiers, frontiers, num_pins);
     allocateCopyCUDA(rhs.frontiers_ends, frontiers_ends, num_levels + 1);
     allocateCopyCUDA(rhs.pin_slews, pin_slews, num_pins * MAX_SPLIT_TRAN); 
     allocateCopyCUDA(rhs.pin_ats, pin_ats, num_pins * MAX_SPLIT_TRAN); 
-    allocateCopyCUDA(rhs.cell_arc_delays, cell_arc_delays, num_arcs * MAX_SPLIT_TRAN * MAX_TRAN);
+    allocateCopyCUDA(rhs.arc_infos, arc_infos, num_arcs);
+}
+
+void PropCUDA::copy_fanin_graph(FlatArcGraphCUDA const& host_data) {
+    host_data.copy2device(fanin_graph);
+}
+
+void PropCUDA::copy_slew_ft(FlatTableCUDA const& host_data) {
+    host_data.copy2device(this->slew_ft); 
+}
+
+void PropCUDA::copy_delay_ft(FlatTableCUDA const& host_data) {
+    host_data.copy2device(this->delay_ft);
+}
+
+void PropCUDA::copy_fanout_degrees(std::vector<int> const& host_fanout_degrees) {
+    allocateCopyCUDA(fanout_degrees, host_fanout_degrees.data(), host_fanout_degrees.size());
+}
+
+void PropCUDA::copy_pin_loads(std::vector<float> const& host_pin_loads) {
+    allocateCopyCUDA(pin_loads, host_pin_loads.data(), host_pin_loads.size());
+}
+
+void PropCUDA::copy_arc2ftid(std::vector<int> const& host_arc2ftid) {
+    allocateCopyCUDA(arc2ftid, host_arc2ftid.data(), host_arc2ftid.size());
+}
+
+void PropCUDA::copy_frontiers(std::vector<int> const& host_frontiers) {
+    allocateCopyCUDA(frontiers, host_frontiers.data(), host_frontiers.size()); 
+    num_pins = host_frontiers.size();
+}
+
+void PropCUDA::copy_frontiers_ends(std::vector<int> const& host_frontiers_ends) {
+    allocateCopyCUDA(frontiers_ends, host_frontiers_ends.data(), host_frontiers_ends.size()); 
+    num_levels = host_frontiers_ends.size() - 1;
+}
+
+void PropCUDA::copy_pin_slews(std::vector<PinInfoCUDA> const& host_pin_slews) {
+    allocateCopyCUDA(pin_slews, host_pin_slews.data(), host_pin_slews.size());
+}
+
+void PropCUDA::copy_pin_ats(std::vector<PinInfoCUDA> const& host_pin_ats) {
+    allocateCopyCUDA(pin_ats, host_pin_ats.data(), host_pin_ats.size());
+}
+
+void PropCUDA::copy_arc_infos(std::vector<ArcInfo> const& host_arc_infos) {
+    allocateCopyCUDA(arc_infos, host_arc_infos.data(), host_arc_infos.size());
+    num_arcs = host_arc_infos.size();
 }
 
 __device__ float interpolate(float x1, float x2, float d1, float d2, float x) {
@@ -176,14 +222,17 @@ __global__ void fprop_slew_cuda(PropCUDA prop, int level_l, int level_r) {
             FlatArc const& arc = prop.fanin_graph.adjacency_list[e]; 
             int arc_idx = (arc.idx >> 1);
             int pin_from = arc.other;
+            auto& arc_info = prop.arc_infos[arc_idx];
+            assert(arc_idx < prop.num_arcs);
             auto arc_type = (arc.idx & 1); 
             if (arc_type) { // cell arc 
                 int pin_from_offset = pin_from * MAX_SPLIT_TRAN + el * MAX_TRAN;
-                int arc_offset = arc_idx * MAX_SPLIT_TRAN * MAX_TRAN + el * MAX_TRAN * MAX_TRAN + trf; 
+                int arc_offset = el * MAX_TRAN * MAX_TRAN + trf; 
                 for (int frf = 0; frf < MAX_TRAN; ++frf) {
                     auto const& from_slew = prop.pin_slews[pin_from_offset + frf]; 
                     auto const& from_at = prop.pin_ats[pin_from_offset + frf]; 
-                    auto& arc_delay = prop.cell_arc_delays[arc_offset + frf * MAX_TRAN];
+                    assert(arc_offset + frf * MAX_TRAN < 8);
+                    auto& arc_delay = arc_info.cell_arc.delays[arc_offset + frf * MAX_TRAN];
                     int lutidx = ftid(prop, arc_idx, el, frf, trf); 
                     if (lutidx < prop.slew_ft.num_tables) {
                         float cur_to_slew = lut_lookup(prop.slew_ft, lutidx, from_slew.value, to_load);
@@ -199,9 +248,9 @@ __global__ void fprop_slew_cuda(PropCUDA prop, int level_l, int level_r) {
                 int pin_from_offset = pin_from * MAX_SPLIT_TRAN + el_trf;
                 auto const& from_slew = prop.pin_slews[pin_from_offset];
                 auto const& from_at = prop.pin_ats[pin_from_offset];
-                int arc_offset = arc_idx * MAX_SPLIT_TRAN + el_trf;
-                float arc_impulse = prop.net_arc_impulses[arc_offset];
-                float arc_delay = prop.net_arc_delays[arc_offset];
+                assert(el_trf < 4);
+                float arc_impulse = arc_info.net_arc.impulses[el_trf];
+                float arc_delay = arc_info.net_arc.delays[el_trf];
                 int sign = (from_slew.value < 0? -1 : 1);
                 float cur_to_slew = sqrtf(from_slew.value * from_slew.value + arc_impulse) * sign; 
                 float cur_to_at = from_at.value + arc_delay; 
@@ -225,7 +274,7 @@ __global__ void print(PinInfoCUDA const* pin_slews, int n) {
     }
 }
 
-void prop_cuda(PropCUDA& data_cpu) {
+void prop_cuda(PropCUDA& data_cpu, PropCUDA& data_cuda) {
     //print(prop_data_cpu.arcs, prop_data_cpu.num_arcs); 
     //print(prop_data_cpu.net_arc_delays, prop_data_cpu.num_arcs, "net_arc_delays"); 
     //print(prop_data_cpu.net_arc_impulses, prop_data_cpu.num_arcs, "net_arc_impulses"); 
@@ -234,9 +283,14 @@ void prop_cuda(PropCUDA& data_cpu) {
     //print(prop_data_cpu.slew_ft, "slew_ft");
     //print(prop_data_cpu.delay_ft, "delay_ft");
     // kernel propagation  
-    PropCUDA data_cuda;
-    data_cpu.copy2device(data_cuda);
+    checkCUDA(cudaDeviceSynchronize());
+    _prof::setup_timer("prop_cuda__copy_c2g");
+    //PropCUDA data_cuda;
+    //data_cpu.copy2device(data_cuda);
+    checkCUDA(cudaDeviceSynchronize());
+    _prof::stop_timer("prop_cuda__copy_c2g");
 
+    _prof::setup_timer("prop_cuda__kernel__");
     constexpr int chunk = 32; 
     for (int i = data_cpu.num_levels - 1; i >= 0; --i) {
         int l = data_cpu.frontiers_ends[i]; 
@@ -248,15 +302,20 @@ void prop_cuda(PropCUDA& data_cpu) {
         //printf("\n");
         int block_dim = (r - l + chunk - 1) / chunk;
         fprop_slew_cuda<<<block_dim, {chunk, MAX_SPLIT_TRAN}>>>(data_cuda, l, r); 
-        //fprop_at_cuda<<<block_dim, {chunk, MAX_SPLIT_TRAN}>>>(data_cuda, l, r); 
     }
+    checkCUDA(cudaDeviceSynchronize());
+    _prof::stop_timer("prop_cuda__kernel__");
 
     //print<<<1, 1>>>(data_cuda.pin_slews, data_cuda.num_pins); 
 
+    _prof::setup_timer("prop_cuda__copy_g2c");
     checkCUDA(cudaMemcpy(data_cpu.pin_slews, data_cuda.pin_slews, sizeof(PinInfoCUDA) * data_cpu.num_pins * MAX_SPLIT_TRAN, cudaMemcpyDeviceToHost));
     checkCUDA(cudaMemcpy(data_cpu.pin_ats, data_cuda.pin_ats, sizeof(PinInfoCUDA) * data_cpu.num_pins * MAX_SPLIT_TRAN, cudaMemcpyDeviceToHost));
-    checkCUDA(cudaMemcpy(data_cpu.cell_arc_delays, data_cuda.cell_arc_delays, sizeof(float) * data_cpu.num_arcs * MAX_SPLIT_TRAN * MAX_TRAN, cudaMemcpyDeviceToHost));
+    checkCUDA(cudaMemcpy(data_cpu.arc_infos, data_cuda.arc_infos, sizeof(ArcInfo) * data_cpu.num_arcs, cudaMemcpyDeviceToHost));
+
+    data_cuda.destroy_device(); 
     checkCUDA(cudaDeviceSynchronize());
+    _prof::stop_timer("prop_cuda__copy_g2c");
 
     //for (int i = 0; i < data_cpu.num_pins; ++i) {
     //    for (int el = 0; el < MAX_SPLIT; ++el) {
@@ -266,5 +325,4 @@ void prop_cuda(PropCUDA& data_cpu) {
     //        }
     //    }
     //}
-    data_cuda.destroy_device(); 
 }
