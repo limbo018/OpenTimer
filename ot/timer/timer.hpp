@@ -38,9 +38,9 @@ struct HierTable {
 
 struct FlatTable {
 
-  unsigned num_tables; // number of valid tables, only count for existing ones 
+  int num_tables; // number of valid tables, only count for existing ones 
 
-  std::unordered_map<const Timing*, unsigned> t2ftid[MAX_SPLIT][MAX_TRAN][MAX_TRAN];
+  std::unordered_map<const Timing*, int> t2ftid[MAX_SPLIT][MAX_TRAN][MAX_TRAN];
 
   std::vector<float> slew_indices1;  
   std::vector<float> slew_indices2;  
@@ -50,13 +50,13 @@ struct FlatTable {
   std::vector<float> delay_indices2;  
   std::vector<float> delay_table;           
 
-  std::vector<unsigned> slew_indices1_start;
-  std::vector<unsigned> slew_indices2_start;
-  std::vector<unsigned> slew_table_start;
+  std::vector<int> slew_indices1_start;
+  std::vector<int> slew_indices2_start;
+  std::vector<int> slew_table_start;
 
-  std::vector<unsigned> delay_indices1_start;
-  std::vector<unsigned> delay_indices2_start;
-  std::vector<unsigned> delay_table_start;
+  std::vector<int> delay_indices1_start;
+  std::vector<int> delay_indices2_start;
+  std::vector<int> delay_table_start;
 };
 
 // Class: Timer
@@ -194,6 +194,7 @@ class Timer {
 
     std::optional<FlatRctStorage> _flat_rct_stor;
     std::optional<std::vector<int>> _prop_frontiers;
+    std::optional<std::vector<int>> _prop_frontiers_ends;
  
     std::list<Test> _tests;
     std::list<Arc> _arcs;
@@ -302,8 +303,8 @@ class Timer {
     void _insert_full_timing_frontiers();
     void _spur(Endpoint&, size_t, PathHeap&) const;
     void _spur(PfxtCache&, const PfxtNode&) const;
-    void _flattern_liberty();
-    void _update_arc2ftid(std::vector<unsigned>& arc2ftid);
+    void _flatten_liberty();
+    //void _update_arc2ftid(std::vector<int>& arc2ftid);
     void _dump_graph(std::ostream&) const;
     void _dump_taskflow(std::ostream&) const;
     void _dump_cell(std::ostream&, const std::string&, Split) const;

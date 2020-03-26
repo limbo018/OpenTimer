@@ -1,7 +1,18 @@
-#include <ot/cuda/toposort.cuh>
+//#include <ot/cuda/toposort.cuh>
+#include <ot/cuda/prop.cuh>
 #include <ot/cuda/utils.cuh>
 
-__global__ void toposort_advance(int *edgelist_start, int *edgelist,
+__global__ void toposort_init(int *out, int *frontiers, int* first_size, int n) {
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id < n) {
+      if (out[id] == 0) {
+          int index = atomicAdd(first_size, 1); 
+          frontiers[index] = id; 
+      }
+  }
+}
+
+__global__ void toposort_advance(int *edgelist_start, FlatArc *edgelist,
                                  int *out,
                                  int *frontiers,
                                  int last_size, int *new_size) {
@@ -13,7 +24,7 @@ __global__ void toposort_advance(int *edgelist_start, int *edgelist,
   int edge_st = edgelist_start[u], edge_ed = edgelist_start[u + 1];
   
   for(int i = edge_st; i < edge_ed; ++i) {
-    int v = edgelist[i];
+    int v = edgelist[i].other;
     if(1 == atomicAdd(&out[v], -1)) {
       next_frontiers[atomicAdd(new_size, 1)] = v;
     }
@@ -22,29 +33,37 @@ __global__ void toposort_advance(int *edgelist_start, int *edgelist,
 
 const int thread_per_block = 128;
 
-void toposort_compute_cuda(
-  int n, int num_edges, int first_size,
-  int *edgelist_start, int *edgelist, int *out, int *frontiers,
+void toposort_compute_cuda(PropCUDA& prop_data_cpu, PropCUDA& prop_data_cuda, 
   std::vector<int> &frontiers_ends)
 {
+    int n = prop_data_cuda.fanin_graph.num_nodes; 
+    int num_edges = prop_data_cuda.fanin_graph.num_edges;
   // Step 1: copy to GPU
-  int *edgelist_start_gpu, *edgelist_gpu, *out_gpu;
-  int *frontiers_gpu;
-  int *new_size_gpu;
+  int *size_gpu = nullptr;
 
-  allocateCopyCUDA(edgelist_start_gpu, edgelist_start, n + 1);
-  allocateCopyCUDA(edgelist_gpu, edgelist, num_edges);
-  allocateCopyCUDA(out_gpu, out, n);
-  allocateCopyCUDA(frontiers_gpu, frontiers, n);
-  allocateCUDA(new_size_gpu, 1, int);
+  allocateCUDA(size_gpu, 2, int);
+  cudaMemset(size_gpu, 0, sizeof(int) * 2); 
   checkCUDA(cudaDeviceSynchronize());
+
+  int* new_size_gpu = size_gpu; 
+  int* first_size_gpu = size_gpu + 1; 
+
+  // Step 1.1: initialize first size 
+  toposort_init<<<(n + thread_per_block - 1) / thread_per_block, thread_per_block>>>(
+          prop_data_cuda.fanout_degrees, prop_data_cuda.frontiers, first_size_gpu, n
+          ); 
+  int first_size = 0; 
+  memcpyDeviceHostCUDA(&first_size, first_size_gpu, 1); 
+  checkCUDA(cudaDeviceSynchronize());
+  frontiers_ends.push_back(0); 
+  frontiers_ends.push_back(first_size); 
 
   // Step 2: do the computation
   int total_size_wo_last = 0, last_size = first_size;
   while(true) {
     toposort_advance<<<(last_size + thread_per_block - 1) / thread_per_block,
-      thread_per_block>>>(edgelist_start_gpu, edgelist_gpu, out_gpu,
-                          frontiers_gpu + total_size_wo_last,
+      thread_per_block>>>(prop_data_cuda.fanin_graph.adjacency_list_start, prop_data_cuda.fanin_graph.adjacency_list, prop_data_cuda.fanout_degrees,
+                          prop_data_cuda.frontiers + total_size_wo_last,
                           last_size, new_size_gpu);
     int current_size;
     memcpyDeviceHostCUDA(&current_size, new_size_gpu, 1);
@@ -62,11 +81,7 @@ void toposort_compute_cuda(
   }
 
   // Step 3: copy back to CPU
-  memcpyDeviceHostCUDA(frontiers, frontiers_gpu, n);
-  destroyCUDA(edgelist_start_gpu);
-  destroyCUDA(edgelist_gpu);
-  destroyCUDA(out_gpu);
-  destroyCUDA(frontiers_gpu);
-  destroyCUDA(new_size_gpu);
+  memcpyDeviceHostCUDA(prop_data_cpu.frontiers, prop_data_cuda.frontiers, n);
+  destroyCUDA(size_gpu);
   checkCUDA(cudaDeviceSynchronize());
 }
