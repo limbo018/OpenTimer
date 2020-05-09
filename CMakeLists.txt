@@ -262,6 +262,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/example/incr-profile)
 add_executable(incr-profile example/incr-profile/incr-profile.cpp)
 target_link_libraries(incr-profile ${OT_LINK_FLAGS})
 
+# incr-profile-cuda
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/example/incr-profile)
+add_executable(incr-profile-cuda example/incr-profile/incr-profile-cuda.cpp)
+target_link_libraries(incr-profile-cuda ${OT_LINK_FLAGS})
+
 ###########################################################
 # Install
 # cmake .. -DCMAKE_INSTALL_PREFIX=<prefix_path>
