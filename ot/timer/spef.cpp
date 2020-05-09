@@ -50,4 +50,32 @@ void Timer::_read_spef(spef::Spef& spef) {
   }
 }
 
+// Procedure: roulette_spef
+// randomly select some RC nets and reset them
+// this is for profiling incremental timing
+std::pair<int, int> Timer::roulette_spef(int expect_size, std::default_random_engine &rnd) {
+  int count = 0, sum = 0;
+  std::vector<Net*> nets;
+  nets.reserve(_nets.size());
+  for(auto &it: _nets) {
+    nets.push_back(&it.second);
+  }
+  std::shuffle(nets.begin(), nets.end(), rnd);
+  for(Net *net: nets) {
+    if(!net->_rc_timing_updated) continue;
+    if(!net->_spef_net) continue;
+    ++count;
+    sum += net->_spef_net->ress.size() + 1;
+    net->_rc_timing_updated = false;
+    _insert_frontier(*net->_root);
+    if(sum >= expect_size) break;
+  }
+  if(!_lineage) {
+    _add_to_lineage(_taskflow.emplace([] () {
+          OT_LOGI("rouletted");
+        }));
+  }
+  return std::make_pair(count, sum);
+}
+
 };  // end of namespace ot. -----------------------------------------------------------------------

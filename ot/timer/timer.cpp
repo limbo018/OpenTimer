@@ -928,37 +928,52 @@ void Timer::_build_rc_timing_tasks() {
 
   if(_has_state(CUDA_ENABLED)) {
     // Step 1: Allocate the space for FlatRct's
-    auto& stor = _flat_rct_stor.emplace();
-    
-    stor.rct_nodes_start.reserve(_nets.size() + 1);
-    
+    if(!_flat_rct_stor) {
+      _flat_rct_stor.emplace();
+    }
+    auto& stor = *_flat_rct_stor;
+
+    stor.pinload.resize(_pins.size() * MAX_SPLIT_TRAN);
+    stor.pindelay.resize(_pins.size() * MAX_SPLIT_TRAN);
+    stor.pinimpulse.resize(_pins.size() * MAX_SPLIT_TRAN);
+
+    stor.rct_nodes_start.clear();
+    stor.rct_nodes_start.reserve(_fprop_cands.size() + 1);
+
     int total_num_nodes = 0;
     int total_num_edges = 0; 
-    int net_id = 0; 
-    for(auto &p : _nets) {
-      size_t sz = p.second._init_flat_rct(&stor, total_num_nodes, total_num_edges, net_id);
-      if(!sz) continue;
-
-      stor.rct_nodes_start.push_back(total_num_nodes);
-      total_num_nodes += sz;
-      total_num_edges += sz - 1; 
-      net_id += 1; 
+    int net_id = 0;
+    
+    for(Pin *p: _fprop_cands) {
+      Pin &pin = *p;
+      if(auto net = pin._net; net) {
+        size_t sz = net->_init_flat_rct(&stor, total_num_nodes, total_num_edges, net_id);
+        if(!sz) continue;
+        stor.rct_nodes_start.push_back(total_num_nodes);
+        total_num_nodes += sz;
+        total_num_edges += sz - 1; 
+        net_id += 1; 
+      }
     }
+    
     assert(total_num_edges + net_id == total_num_nodes);
     stor.rct_nodes_start.push_back(total_num_nodes);
     stor.total_num_nodes = total_num_nodes;
     stor.total_num_edges = total_num_edges; 
-    stor.rct_edges.resize(total_num_edges); 
-    stor.rct_edges_res.assign(total_num_edges, 0); 
-    stor.rct_nodes_cap.assign(total_num_nodes*MAX_SPLIT_TRAN, 0); 
+    stor.rct_edges.resize(total_num_edges);
+    stor.rct_edges_res.assign(total_num_edges, 0);
+    stor.rct_nodes_cap.assign(total_num_nodes*MAX_SPLIT_TRAN, 0);
     stor.rct_roots.resize(_nets.size());
     stor.rct_node2bfs_order.resize(total_num_nodes);
-    stor.rct_pinidx2id.assign(_pins.size(), -1);
+    stor.rct_pinidx2id.resize(_pins.size(), -1);
     stor.rct_pid.resize(total_num_nodes);
 
     // Step 2: Create task for FlatRct make
-    auto pf_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
-        p.second._update_rc_timing_flat();
+    auto updflat = _taskflow.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [] (Pin *p) {
+        Pin &pin = *p;
+        if(auto net = pin._net; net) {
+          net->_update_rc_timing_flat();
+        }
       }, 32);
 
     // Step 3: Create task for computing FlatRctStorage
@@ -966,13 +981,48 @@ void Timer::_build_rc_timing_tasks() {
         _flat_rct_stor->_update_timing_cuda();
       });
 
-    pf_pair.second.precede(task_compute);
-    //task_init_omp.precede(task_compute);
+    // Step 4: Persist Pin delay/impulse data
+    auto persdata = _taskflow.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [] (Pin *p) {
+        Pin &pin = *p;
+        if(auto net = pin._net; net) {
+          net->_persist_flatrct();
+        }
+      }, 32);
+
+    updflat.second.precede(task_compute);
+    task_compute.precede(persdata.first);
   }
   else {
-    _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
-        p.second._update_rc_timing();
-      }, 32);
+    // below is straightforward, but it cannot support incremental timing
+    // because it updates every nets every time.
+    
+    // _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
+    //     p.second._update_rc_timing();
+    //   }, 32);
+
+    // below is extracted from opentimer/opentimer master
+    
+    // Emplace the fprop task
+    // propagate the rc timing only.
+    for(auto pin : _fprop_cands) {
+      assert(!pin->_ftask);
+      pin->_ftask = _taskflow.emplace([this, pin] () {
+          _fprop_rc_timing(*pin);
+        });
+    }
+  
+    // Build the dependency
+    for(auto to : _fprop_cands) {
+      for(auto arc : to->_fanin) {
+        if(arc->_has_state(Arc::LOOP_BREAKER)) {
+          continue;
+        }
+        if(auto& from = arc->_from; from._has_state(Pin::FPROP_CAND)) {
+          from._ftask->precede(to->_ftask.value());
+        }
+      }
+    }
+
   }
 
   _prof::stop_timer("_build_rc_timing_tasks");
@@ -980,7 +1030,14 @@ void Timer::_build_rc_timing_tasks() {
 
 // Procedure: _clear_prop_tasks
 void Timer::_clear_rc_timing_tasks() {
-  // no need to do anything
+  // no need to do anything if we use cuda settings
+
+  // or...
+  if(!_has_state(CUDA_ENABLED)) {
+    for(auto pin: _fprop_cands) {
+      pin->_ftask.reset();
+    }
+  }
 }
 
 // Procedure: _build_prop_tasks_cuda
@@ -1008,16 +1065,16 @@ void Timer::_build_prop_tasks_cuda() {
   OT_LOGI("bptc I - IV");
 
   // count number of edges
-  auto count_edges_pair = _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
+  auto count_edges_pair = _tf.parallel_for(_bprop_cands.begin(), _bprop_cands.end(), [&] (Pin *pin) {
       int &szi = edgelist_start[pin->_idx + 1];
       for(auto arc: pin->_fanin) {
         if(!arc->_has_state(Arc::LOOP_BREAKER)
-           && arc->_from._has_state(Pin::FPROP_CAND)) ++szi;
+           && arc->_from._has_state(Pin::BPROP_CAND)) ++szi;
       }
       int &outi = out[pin->_idx];
       for(auto arc: pin->_fanout) {
         if(!arc->_has_state(Arc::LOOP_BREAKER)
-           && arc->_to._has_state(Pin::FPROP_CAND)) ++outi;
+           && arc->_to._has_state(Pin::BPROP_CAND)) ++outi;
       }
     }, 32);
 
@@ -1036,11 +1093,11 @@ void Timer::_build_prop_tasks_cuda() {
   //OT_LOGI("bptc III");
 
   // put edges into edgelist
-  auto [put_edges_S, put_edges_T] = _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
+  auto [put_edges_S, put_edges_T] = _tf.parallel_for(_bprop_cands.begin(), _bprop_cands.end(), [&] (Pin *pin) {
       int st = edgelist_start[pin->_idx];
       for(auto arc: pin->_fanin) {
         if(!arc->_has_state(Arc::LOOP_BREAKER)
-           && arc->_from._has_state(Pin::FPROP_CAND)) {
+           && arc->_from._has_state(Pin::BPROP_CAND)) {
           edgelist[st++] = arc->_from._idx;
         }
       }
@@ -1052,7 +1109,7 @@ void Timer::_build_prop_tasks_cuda() {
   // init default frontier
   auto init_frontier = _tf.emplace([&](){
               first_size = 0;
-              for(auto pin: _fprop_cands) {
+              for(auto pin: _bprop_cands) {
                 if(!out[pin->_idx]) frontiers[first_size++] = pin->_idx;
               }
               frontiers_ends.push_back(0);
@@ -1065,10 +1122,14 @@ void Timer::_build_prop_tasks_cuda() {
   
   OT_LOGI("bptc V");
 
+  _prof::setup_timer("toposort_compute_cuda");
+  
   // Step 2: call GPU function
   toposort_compute_cuda(n, num_edges, first_size,
                         edgelist_start.data(), edgelist.data(), out.data(),
                         frontiers.data(), frontiers_ends);
+  
+  _prof::stop_timer("toposort_compute_cuda");
 
   OT_LOGI("bptc VI", "  sz ", frontiers_ends.size());
 
@@ -1248,6 +1309,7 @@ void Timer::_update_timing() {
   // Timing is update-to-date
   if(!_lineage) {
     assert(_frontiers.size() == 0);
+    _prof::stop_timer("_update_timing");
     return;
   }
 

@@ -20,7 +20,9 @@ namespace _prof {
   }
 
   void stop_timer(const std::string &name) {
-    OT_LOGI("PROF timer ", name, " done: ", timestamp() - timers[name], " ms.");
+    intms ret = timestamp() - timers[name];
+    timers[name] = ret;
+    OT_LOGI("PROF timer ", name, " done: ", ret, " ms.");
   }
 
   void init_tasktimers() {

@@ -64,6 +64,8 @@ class Timer {
     Timer& set_voltage_unit(volt_t);
     Timer& set_power_unit(watt_t);
     Timer& set_current_unit(ampere_t);
+    
+    std::pair<int, int> roulette_spef(int expect_size, std::default_random_engine &rnd);
 
     // Action.
     void update_timing();

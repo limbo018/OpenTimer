@@ -278,12 +278,14 @@ void FlatRctStorage::_update_timing_cuda() {
 // ------------------------------------------------------------------------------------------------
 
 float FlatRct::slew(int id, Split m, Tran t, float si) const {
-  float impulse = _stor->impulse[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+  //float impulse = _stor->impulse[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+  float impulse = _stor->pinimpulse[id];
   return si < 0.0f ? -std::sqrt(si*si + impulse) : std::sqrt(si*si + impulse);
 }
 
 float FlatRct::delay(int id, Split m, Tran t) const {
-  return _stor->delay[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+  //return _stor->delay[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+  return _stor->pindelay[id];
 }
 
 void FlatRct::_scale_capacitance(float s) {
@@ -352,7 +354,7 @@ size_t Net::_init_flat_rct(FlatRctStorage *_stor, int arr_start, int edge_start,
   // allocated in init.
   // This ensures enough parallelization exploited at the
   // time-consuming make step.
-
+  if(_rc_timing_updated) return 0;
   if(!_spef_net) return 0;
 
   auto &rct = _rct.emplace<FlatRct>();
@@ -503,18 +505,6 @@ void Net::_update_rc_timing_flat() {
 
   std::visit(Functors{
     [&] (EmptyRct& rct) {
-      assert(0); 
-    },
-    [&] (Rct& rct) {
-      assert(0); 
-    },
-    [&] (FlatRct &rct) {
-      _make_flat_rct();
-    }
-    }, _rct);
-  
-  std::visit(Functors{
-    [&] (EmptyRct& rct) {
       FOR_EACH_EL_RF(el, rf) {
         rct.load[el][rf] = std::accumulate(_pins.begin(), _pins.end(), 0.0f, 
           [this, el=el, rf=rf] (float v, Pin* pin) {
@@ -522,6 +512,21 @@ void Net::_update_rc_timing_flat() {
           }
         );
       }
+
+      _rc_timing_updated = true;
+    },
+    [&] (Rct& rct) {
+      assert(0); 
+    },
+    [&] (FlatRct &rct) {
+      _make_flat_rct();
+      // do not set _rc_timing_updated when it's flatrct.
+      // this is set in _persist_flatrct().
+    }
+    }, _rct);
+  
+  std::visit(Functors{
+    [&] (EmptyRct& rct) {
     },
     [&] (Rct& rct) {
     },
@@ -529,7 +534,28 @@ void Net::_update_rc_timing_flat() {
     }
     }, _rct);
   
-  _rc_timing_updated = true; // NOT really, for we also need to compute within the Timer-global FlatRctStorage
+}
+
+void Net::_persist_flatrct() {
+  std::visit(Functors{
+    [&] (EmptyRct& rct) {
+    },
+    [&] (Rct& rct) {
+    },
+    [&] (FlatRct &rct) {
+      FlatRctStorage &stor = *rct._stor;
+      for(Pin *p: _pins) {
+        int id = rct._arr_start + stor.rct_node2bfs_order[rct._arr_start + p->_idx];
+        for(int i = 0; i < MAX_SPLIT_TRAN; ++i) {
+          int x = p->_idx * 4 + i, y = id * 4 + i;
+          stor.pinload[x] = stor.load[y];
+          stor.pindelay[x] = stor.delay[y];
+          stor.pinimpulse[x] = stor.impulse[y];
+        }
+      }
+      _rc_timing_updated = true;
+    }
+    }, _rct);
 }
 
 // Procedure: _update_rc_timing
@@ -636,7 +662,7 @@ float Net::_load(Split m, Tran t) const {
       return rct._root->_load[m][t];
     },
     [&] (const FlatRct &rct) {
-      return rct._stor->load[rct._arr_start * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
+      return rct._stor->pinload[_root->_idx * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
     }
   }, _rct);
 }
@@ -660,7 +686,8 @@ std::optional<float> Net::_slew(Split m, Tran t, float si, Pin& to) const {
     [&] (const FlatRct& rct) -> std::optional<float> {
       int id = rct._stor->rct_pinidx2id[to._idx];
       if(id == -1) return std::nullopt;
-      else return rct.slew(id, m, t, si);
+      //else return rct.slew(id, m, t, si);
+      else return rct.slew(to._idx, m, t, si);
       // if(auto it = rct.find(to._name); it != rct.end()) {
       //   return rct.slew(it->second, m, t, si);
       // }
@@ -689,7 +716,8 @@ std::optional<float> Net::_delay(Split m, Tran t, Pin& to) const {
     [&] (const FlatRct& rct) -> std::optional<float> {
       int id = rct._stor->rct_pinidx2id[to._idx];
       if(id == -1) return std::nullopt;
-      else return rct.delay(id, m, t);
+      //else return rct.delay(id, m, t);
+      else return rct.delay(to._idx, m, t);
       // if(auto it = rct.find(to._name); it != rct.end()) {
       //   return rct.delay(it->second, m, t);
       // }

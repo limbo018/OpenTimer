@@ -257,6 +257,11 @@ target_link_libraries(sizer ${OT_LINK_FLAGS})
 #add_executable(aes_cipher example/aes_cipher/aes_cipher.cpp)
 #target_link_libraries(aes_cipher ${OT_LINK_FLAGS})
 
+# incr-profile
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/example/incr-profile)
+add_executable(incr-profile example/incr-profile/incr-profile.cpp)
+target_link_libraries(incr-profile ${OT_LINK_FLAGS})
+
 ###########################################################
 # Install
 # cmake .. -DCMAKE_INSTALL_PREFIX=<prefix_path>

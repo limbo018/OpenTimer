@@ -160,7 +160,9 @@ struct FlatRctStorage {
   std::vector<float> rct_edges_res; ///< length of total_num_edges; edge resistance; in original order  
   std::vector<float> rct_nodes_cap; ///< length of total_num_nodes; node capacitance; in original order 
 
-  std::vector<float> load, delay, ldelay, impulse;
+  std::vector<float> load, delay, ldelay, impulse; ///< data stored in relative id
+
+  std::vector<float> pinload, pindelay, pinimpulse; ///< data stored in pin idx
 
   void _update_timing_cuda();
 };
@@ -236,6 +238,7 @@ class Net {
     
     void _update_rc_timing();
     void _update_rc_timing_flat();
+    void _persist_flatrct();
     void _attach(spef::Net&&);
     void _make_rct();
     //void _make_rct(const spef::Net&);
