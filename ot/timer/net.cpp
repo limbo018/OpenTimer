@@ -279,16 +279,17 @@ void FlatRctStorage::_update_timing_cuda() {
 
 float FlatRct::slew(int id, Split m, Tran t, float si) const {
   //float impulse = _stor->impulse[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
-  float impulse = _stor->pinimpulse[id];
+  float impulse = _stor->pinimpulse[id * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
   return si < 0.0f ? -std::sqrt(si*si + impulse) : std::sqrt(si*si + impulse);
 }
 
 float FlatRct::delay(int id, Split m, Tran t) const {
   //return _stor->delay[(_arr_start + _stor->rct_node2bfs_order[_arr_start + id]) * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
-  return _stor->pindelay[id];
+  return _stor->pindelay[id * MAX_SPLIT_TRAN + m * MAX_TRAN + t];
 }
 
 void FlatRct::_scale_capacitance(float s) {
+  // TODO: buggy if not in flatrctstorage
   for(size_t i = 0; i < _num_nodes; ++i) {
     for(int j = 0; j < MAX_SPLIT_TRAN; ++j) {
       _stor->rct_nodes_cap[(_arr_start + i) * MAX_SPLIT_TRAN + j] *= s;
@@ -297,6 +298,7 @@ void FlatRct::_scale_capacitance(float s) {
 }
 
 void FlatRct::_scale_resistance(float s) {
+  // TODO: buggy if not in flatrctstorage
   for(size_t i = 0; i < _num_nodes - 1; ++i) { 
     _stor->rct_edges_res[_arr_start + i] *= s;
   }
@@ -545,7 +547,7 @@ void Net::_persist_flatrct() {
     [&] (FlatRct &rct) {
       FlatRctStorage &stor = *rct._stor;
       for(Pin *p: _pins) {
-        int id = rct._arr_start + stor.rct_node2bfs_order[rct._arr_start + p->_idx];
+        int id = rct._arr_start + stor.rct_node2bfs_order[rct._arr_start + stor.rct_pinidx2id[p->_idx]];
         for(int i = 0; i < MAX_SPLIT_TRAN; ++i) {
           int x = p->_idx * 4 + i, y = id * 4 + i;
           stor.pinload[x] = stor.load[y];

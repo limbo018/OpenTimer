@@ -946,7 +946,7 @@ void Timer::_build_rc_timing_tasks() {
     
     for(Pin *p: _fprop_cands) {
       Pin &pin = *p;
-      if(auto net = pin._net; net) {
+      if(auto net = pin._net; net && net->_root == p) {
         size_t sz = net->_init_flat_rct(&stor, total_num_nodes, total_num_edges, net_id);
         if(!sz) continue;
         stor.rct_nodes_start.push_back(total_num_nodes);
@@ -971,7 +971,7 @@ void Timer::_build_rc_timing_tasks() {
     // Step 2: Create task for FlatRct make
     auto updflat = _taskflow.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [] (Pin *p) {
         Pin &pin = *p;
-        if(auto net = pin._net; net) {
+        if(auto net = pin._net; net && net->_root == p) {
           net->_update_rc_timing_flat();
         }
       }, 32);
@@ -984,7 +984,7 @@ void Timer::_build_rc_timing_tasks() {
     // Step 4: Persist Pin delay/impulse data
     auto persdata = _taskflow.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [] (Pin *p) {
         Pin &pin = *p;
-        if(auto net = pin._net; net) {
+        if(auto net = pin._net; net && net->_root == p) {
           net->_persist_flatrct();
         }
       }, 32);
