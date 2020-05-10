@@ -230,6 +230,7 @@ class Net {
     std::optional<spef::Net> _spef_net;
 
     bool _rc_timing_updated {false};
+    std::optional<std::list<Net*>::iterator> _modified_net_satellite;
 
     float _load(Split, Tran) const;
 

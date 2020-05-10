@@ -92,6 +92,11 @@ void Timer::_repower_gate(const std::string& gname, const std::string& cname) {
         assert(pin->cellpin(el));
         if(const auto cpin = cell[el]->cellpin(pin->cellpin(el)->name)) {
           pin->_remap_cellpin(el, *cpin);
+
+          // Then the correponding net becomes dirty
+          if(auto net = pin->_net; net) {
+            _insert_modified_net(*net);
+          }
         }
         else {
           OT_LOGE(
@@ -310,6 +315,9 @@ void Timer::_connect_pin(Pin& pin, Net& net) {
     }
   }
 
+  // Then this net becomes dirty
+  _insert_modified_net(net);
+
   // TODO(twhuang) Enable the clock tree update?
 }
 
@@ -365,6 +373,9 @@ void Timer::_disconnect_pin(Pin& pin) {
   
   // Remove the pin from the net and enable the rc timing update.
   net->_remove_pin(pin);
+  
+  // Then this net becomes dirty
+  _insert_modified_net(*net);
 }
 
 // Function: insert_net
@@ -386,7 +397,9 @@ Timer& Timer::insert_net(std::string name) {
 
 // Function: _insert_net
 Net& Timer::_insert_net(const std::string& name) {
-  return _nets.try_emplace(name, name).first->second;
+  Net &net = _nets.try_emplace(name, name).first->second;
+  _insert_modified_net(net);
+  return net;
 }
 
 // Procedure: remove_net
@@ -408,6 +421,7 @@ Timer& Timer::remove_net(std::string name) {
 
 // Function: _remove_net
 void Timer::_remove_net(Net& net) {
+  _remove_modified_net(net);
 
   if(net.num_pins() > 0) {
     auto fetch = net._pins;
@@ -944,16 +958,13 @@ void Timer::_build_rc_timing_tasks() {
     int total_num_edges = 0; 
     int net_id = 0;
     
-    for(Pin *p: _fprop_cands) {
-      Pin &pin = *p;
-      if(auto net = pin._net; net && net->_root == p) {
-        size_t sz = net->_init_flat_rct(&stor, total_num_nodes, total_num_edges, net_id);
-        if(!sz) continue;
-        stor.rct_nodes_start.push_back(total_num_nodes);
-        total_num_nodes += sz;
-        total_num_edges += sz - 1; 
-        net_id += 1; 
-      }
+    for(Net *net: _modified_nets) {
+      size_t sz = net->_init_flat_rct(&stor, total_num_nodes, total_num_edges, net_id);
+      if(!sz) continue;
+      stor.rct_nodes_start.push_back(total_num_nodes);
+      total_num_nodes += sz;
+      total_num_edges += sz - 1; 
+      net_id += 1; 
     }
     
     assert(total_num_edges + net_id == total_num_nodes);
@@ -969,11 +980,8 @@ void Timer::_build_rc_timing_tasks() {
     stor.rct_pid.resize(total_num_nodes);
 
     // Step 2: Create task for FlatRct make
-    auto updflat = _taskflow.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [] (Pin *p) {
-        Pin &pin = *p;
-        if(auto net = pin._net; net && net->_root == p) {
-          net->_update_rc_timing_flat();
-        }
+    auto updflat = _taskflow.parallel_for(_modified_nets.begin(), _modified_nets.end(), [] (Net *net) {
+        net->_update_rc_timing_flat();
       }, 32);
 
     // Step 3: Create task for computing FlatRctStorage
@@ -982,49 +990,19 @@ void Timer::_build_rc_timing_tasks() {
       });
 
     // Step 4: Persist Pin delay/impulse data
-    auto persdata = _taskflow.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [] (Pin *p) {
-        Pin &pin = *p;
-        if(auto net = pin._net; net && net->_root == p) {
-          net->_persist_flatrct();
-        }
+    auto persdata = _taskflow.parallel_for(_modified_nets.begin(), _modified_nets.end(), [] (Net *net) {
+        net->_persist_flatrct();
       }, 32);
 
     updflat.second.precede(task_compute);
     task_compute.precede(persdata.first);
   }
   else {
-    // below is straightforward, but it cannot support incremental timing
-    // because it updates every nets every time.
-    
-    // _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
-    //     p.second._update_rc_timing();
-    //   }, 32);
-
-    // below is extracted from opentimer/opentimer master
-    
-    // Emplace the fprop task
-    // propagate the rc timing only.
-    for(auto pin : _fprop_cands) {
-      assert(!pin->_ftask);
-      pin->_ftask = _taskflow.emplace([this, pin] () {
-          _fprop_rc_timing(*pin);
-        });
-    }
-  
-    // Build the dependency
-    for(auto to : _fprop_cands) {
-      for(auto arc : to->_fanin) {
-        if(arc->_has_state(Arc::LOOP_BREAKER)) {
-          continue;
-        }
-        if(auto& from = arc->_from; from._has_state(Pin::FPROP_CAND)) {
-          from._ftask->precede(to->_ftask.value());
-        }
-      }
-    }
-
+    _taskflow.parallel_for(_modified_nets.begin(), _modified_nets.end(), [] (Net *net) {
+        net->_update_rc_timing();
+      }, 32);
   }
-
+  
   _prof::stop_timer("_build_rc_timing_tasks");
 }
 
@@ -1323,6 +1301,7 @@ void Timer::_update_timing() {
   // Check if full update is required
   if(_has_state(FULL_TIMING)) {
     _insert_full_timing_frontiers();
+    _insert_full_timing_modified_nets();
   }
 
   // explore propagation candidates
@@ -1347,6 +1326,9 @@ void Timer::_update_timing() {
 
   // clear the rc timing tasks
   _clear_rc_timing_tasks();
+
+  // clear modified nets
+  _clear_modified_nets();
 
   // debug the rc timing result
   // for(auto &[s, net] : _nets) {
@@ -1638,10 +1620,11 @@ void Timer::_insert_full_timing_frontiers() {
     _insert_frontier(kvp.second);
   }
 
-  // clear the rc-net update flag
-  for(auto& kvp : _nets) {
-    kvp.second._rc_timing_updated = false;
-  }
+  // below moved to _insert_full_timing_modified_nets
+  // // clear the rc-net update flag
+  // for(auto& kvp : _nets) {
+  //   kvp.second._rc_timing_updated = false;
+  // }
 }
 
 // Procedure: _insert_frontier
@@ -1673,6 +1656,39 @@ void Timer::_clear_frontiers() {
     ftr->_frontier_satellite.reset();
   }
   _frontiers.clear();
+}
+
+// Procedure: _insert_full_timing_modified_nets
+void Timer::_insert_full_timing_modified_nets() {
+  
+  // clear the rc-net update flag
+  for(auto& kvp : _nets) {
+    kvp.second._rc_timing_updated = false;
+    _insert_modified_net(kvp.second);
+  }
+}
+
+// Procedure: _insert_modified_net
+void Timer::_insert_modified_net(Net& net) {
+  if(net._modified_net_satellite) return;
+
+  net._modified_net_satellite = _modified_nets.insert(_modified_nets.end(), &net);
+}
+
+// Procedure: _remove_modified_net
+void Timer::_remove_modified_net(Net &net) {
+  if(net._modified_net_satellite) {
+    _modified_nets.erase(*net._modified_net_satellite);
+    net._modified_net_satellite.reset();
+  }
+}
+
+// Procedure: _clear_modified_nets
+void Timer::_clear_modified_nets() {
+  for(auto& net: _modified_nets) {
+    net->_modified_net_satellite.reset();
+  }
+  _modified_nets.clear();
 }
 
 // Procedure: _insert_scc
@@ -1873,6 +1889,9 @@ void Timer::_set_load(PrimaryOutput& po, Split m, Tran t, std::optional<float> v
   // Update the net load
   if(auto net = po._pin._net) {
     net->_rc_timing_updated = false;
+    
+    // Then this net becomes dirty. enable net update
+    _insert_modified_net(*net);
   }
   
   // Enable the timing propagation.

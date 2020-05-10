@@ -163,6 +163,7 @@ class Timer {
     std::list<Arc> _arcs;
     std::list<Pin*> _frontiers;
     std::list<SCC> _sccs;
+    std::list<Net*> _modified_nets;
 
     TimingData<std::vector<Endpoint>, MAX_SPLIT, MAX_TRAN> _endpoints;
     TimingData<std::optional<float>,  MAX_SPLIT, MAX_TRAN> _wns;
@@ -234,8 +235,11 @@ class Timer {
     void _disconnect_pin(Pin&);
     void _insert_frontier(Pin&);
     void _remove_frontier(Pin&);
+    void _insert_modified_net(Net&);
+    void _remove_modified_net(Net&);
     void _remove_scc(SCC&);
     void _clear_frontiers();
+    void _clear_modified_nets();
     void _insert_primary_output(const std::string&);
     void _insert_primary_input(const std::string&);
     void _insert_gate(const std::string&, const std::string&);
@@ -262,6 +266,7 @@ class Timer {
     void _enable_full_timing_update();
     void _merge_celllib(Celllib&, Split);
     void _insert_full_timing_frontiers();
+    void _insert_full_timing_modified_nets();
     void _spur(Endpoint&, size_t, PathHeap&) const;
     void _spur(PfxtCache&, const PfxtNode&) const;
     void _dump_graph(std::ostream&) const;

@@ -526,16 +526,6 @@ void Net::_update_rc_timing_flat() {
       // this is set in _persist_flatrct().
     }
     }, _rct);
-  
-  std::visit(Functors{
-    [&] (EmptyRct& rct) {
-    },
-    [&] (Rct& rct) {
-    },
-    [&] (FlatRct &rct) {
-    }
-    }, _rct);
-  
 }
 
 void Net::_persist_flatrct() {

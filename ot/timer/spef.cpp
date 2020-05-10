@@ -46,6 +46,7 @@ void Timer::_read_spef(spef::Spef& spef) {
     else {
       itr->second._attach(std::move(spef_net));
       _insert_frontier(*itr->second._root);
+      _insert_modified_net(itr->second);
     }
   }
 }
@@ -68,6 +69,7 @@ std::pair<int, int> Timer::roulette_spef(int expect_size, std::default_random_en
     sum += net->_spef_net->ress.size() + 1;
     net->_rc_timing_updated = false;
     _insert_frontier(*net->_root);
+    _insert_modified_net(*net);
     if(sum >= expect_size) break;
   }
   if(!_lineage) {
