@@ -1,0 +1,14 @@
+cd benchmark/netcard/
+read_celllib -early netcard_iccad_Early.lib
+read_celllib -late netcard_iccad_Late.lib
+read_verilog netcard_iccad.v
+read_spef netcard_iccad.spef
+read_timing netcard_iccad.timing
+report_timing
+
+remove_net n_218550
+insert_net n_218550
+connect_pin pt0_admem_u0_rfd_reg_3__9__u0:D n_218550
+connect_pin g2095202_u3:ZN n_218550
+read_spef n_218550.spef
+report_timing
