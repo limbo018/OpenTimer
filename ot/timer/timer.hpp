@@ -31,6 +31,7 @@ class Timer {
   constexpr static int AREA_UPDATED  = 0x04;
   constexpr static int POWER_UPDATED = 0x08;
   constexpr static int CUDA_ENABLED  = 0x10;
+  constexpr static int DBG_FLAG      = 0x20;
 
   public:
     
@@ -58,14 +59,16 @@ class Timer {
     Timer& create_clock(std::string, std::string, float);
     Timer& cppr(bool);
     Timer& cuda(bool);
+    Timer& dbg_flag(bool);
     Timer& set_time_unit(second_t);
     Timer& set_capacitance_unit(farad_t);
     Timer& set_resistance_unit(ohm_t);
     Timer& set_voltage_unit(volt_t);
     Timer& set_power_unit(watt_t);
     Timer& set_current_unit(ampere_t);
-    
-    std::pair<int, int> roulette_spef(int expect_size, std::default_random_engine &rnd);
+
+    void dbg_net(std::default_random_engine&, int, int);
+    std::pair<int, int> roulette_spef(int, std::default_random_engine&, std::ostream&);
 
     // Action.
     void update_timing();
@@ -101,6 +104,7 @@ class Timer {
     void dump_timer(std::ostream&) const;
     void dump_verilog(std::ostream&, const std::string&) const;
     void dump_spef(std::ostream&) const;
+    void dump_spef(std::ostream&, const std::vector<Net*>&) const;
     void dump_rctree(std::ostream&) const;
     
     inline auto num_primary_inputs() const;
@@ -283,6 +287,7 @@ class Timer {
     void _dump_timing(std::ostream&) const;
     void _dump_verilog(std::ostream&, const std::string&) const;
     void _dump_spef(std::ostream&) const;
+    void _dump_spef(std::ostream&, const std::vector<Net*>&) const;
     void _dump_rctree(std::ostream&) const;
 
     template <typename... T, std::enable_if_t<(sizeof...(T)>1), void>* = nullptr >

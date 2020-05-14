@@ -7,6 +7,7 @@ namespace _prof {
   typedef long int intms;
   std::map<std::string, intms> timers;
   std::atomic<intms> t_map, t_bfs, t_cap;
+  size_t bprop_cands_size;
     
   intms timestamp() {
     using namespace std::chrono;

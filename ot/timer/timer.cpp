@@ -421,14 +421,14 @@ Timer& Timer::remove_net(std::string name) {
 
 // Function: _remove_net
 void Timer::_remove_net(Net& net) {
-  _remove_modified_net(net);
-
   if(net.num_pins() > 0) {
     auto fetch = net._pins;
     for(auto pin : fetch) {
       _disconnect_pin(*pin);
     }
   }
+
+  _remove_modified_net(net);
 
   _nets.erase(net._name);
 }
@@ -481,6 +481,19 @@ Timer& Timer::cuda(bool flag) {
   else {
     OT_LOGI("disable cuda gpu acceleration");
     _remove_state(CUDA_ENABLED);
+  }
+
+  return *this;
+}
+
+Timer& Timer::dbg_flag(bool flag) {
+  if(flag) {
+    OT_LOGI("enable debug flag");
+    _insert_state(DBG_FLAG);
+  }
+  else {
+    OT_LOGI("disable debug flag");
+    _remove_state(DBG_FLAG);
   }
 
   return *this;
@@ -998,6 +1011,12 @@ void Timer::_build_rc_timing_tasks() {
     task_compute.precede(persdata.first);
   }
   else {
+    // debug
+    if(_modified_nets.size() <= 5) {
+      for(Net *net: _modified_nets) {
+        OT_LOGI("net: ", net->_name, ", nopin: ", net->_pins.size());
+      }
+    }
     _taskflow.parallel_for(_modified_nets.begin(), _modified_nets.end(), [] (Net *net) {
         net->_update_rc_timing();
       }, 32);
@@ -1307,6 +1326,9 @@ void Timer::_update_timing() {
   // explore propagation candidates
   _build_prop_cands();
   
+  // for profile purpose
+  _prof::bprop_cands_size = _bprop_cands.size();
+  
   _prof::setup_timer("_update_timing__taskflow_frontier");
   _executor.run(_taskflow).wait();
   _prof::stop_timer("_update_timing__taskflow_frontier");
@@ -1315,12 +1337,19 @@ void Timer::_update_timing() {
 
   // build rc timing tasks.
   _build_rc_timing_tasks();
-  
+
+  if(_has_state(DBG_FLAG)) {
+    // to use CALLGRIND, add #include <valgrind/callgrind.h> to the top
+    // CALLGRIND_START_INSTRUMENTATION;
+  }
   _prof::setup_timer("_update_timing__taskflow_rctiming");
   _prof::init_tasktimers();
   _executor.run(_taskflow).wait();
   _prof::finalize_tasktimers();
   _prof::stop_timer("_update_timing__taskflow_rctiming");
+  if(_has_state(DBG_FLAG)) {
+    // CALLGRIND_STOP_INSTRUMENTATION;
+  }
 
   _taskflow.clear();
 
