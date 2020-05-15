@@ -521,18 +521,6 @@ void Net::_update_rc_timing_flat() {
 
   std::visit(Functors{
     [&] (EmptyRct& rct) {
-      assert(0); 
-    },
-    [&] (Rct& rct) {
-      assert(0); 
-    },
-    [&] (FlatRct &rct) {
-      _make_flat_rct();
-    }
-    }, _rct);
-  
-  std::visit(Functors{
-    [&] (EmptyRct& rct) {
       FOR_EACH_EL_RF(el, rf) {
         rct.load[el][rf] = std::accumulate(_pins.begin(), _pins.end(), 0.0f, 
           [this, el=el, rf=rf] (float v, Pin* pin) {
@@ -542,8 +530,10 @@ void Net::_update_rc_timing_flat() {
       }
     },
     [&] (Rct& rct) {
+      assert(0); 
     },
     [&] (FlatRct &rct) {
+      _make_flat_rct();
     }
     }, _rct);
   
