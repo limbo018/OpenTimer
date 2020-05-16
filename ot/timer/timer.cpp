@@ -1022,7 +1022,7 @@ void Timer::_build_prop_tasks_cuda() {
   std::vector<int> &frontiers = _prop_frontiers.emplace(n, 0);
   std::vector<int> &frontiers_ends = _prop_frontiers_ends.emplace();
 
-  auto dummy_s1 = _tf.emplace([] () {
+  auto dummy_task1 = _tf.emplace([] () {
       _prof::setup_timer("fanin_count_edges_pair");
     });
 
@@ -1039,6 +1039,7 @@ void Timer::_build_prop_tasks_cuda() {
            && arc->_to._has_state(Pin::FPROP_CAND)) ++outi;
       }
     }, 32);
+  fanin_count_edges_S.succeed(dummy_task1);
   
   // sequential partial sum of fanin degree, for in-edge adjacency list
   auto fanin_prefix_sum = _tf.emplace([&](){
@@ -1254,13 +1255,10 @@ void Timer::_build_prop_tasks_cuda() {
       prop_data_cpu.num_arcs = _arcs.size();
 
       prop_cuda(prop_data_cpu, prop_data_cuda);
+
+      _prof::setup_timer("copy_slew_at/delay");
     });
   
-  // _prof::setup_timer("[TEST]run_prop");
-  // _ex.run(_tf).wait();
-  // _tf.clear();
-  // _prof::stop_timer("[TEST]run_prop");
-
   // run_prop.succeed(copy_timing_table, copy_arc2ftid, copy_pin_loads_arc_infos, copy_pin_slews_ats, copy_frontiers_ends);
   // // run_prop.succeed(fanout_put_edges_T);
   
@@ -1296,8 +1294,19 @@ void Timer::_build_prop_tasks_cuda() {
     }, 32);
   copy_delay_S.succeed(run_prop);
 
+  auto dummy_endcopy = _taskflow.emplace([] () {
+      _prof::stop_timer("copy_slew_at/delay");
+    });
+  dummy_endcopy.succeed(copy_slew_at_T, copy_delay_T);
+
   // Step 3: build remaining tasks for forward prop, and all tasks for backward prop
-  tf::Task last = copy_delay_T;
+  tf::Task last = dummy_endcopy;
+
+  auto dummy_task2 = _taskflow.emplace([] () {
+      _prof::setup_timer("prop_forward_remaining");
+    });
+  dummy_task2.succeed(last);
+  last = dummy_task2;
 
   // forward
   for(int i = (int)frontiers_ends.size() - 2; i >= 0; --i) {
@@ -1313,6 +1322,13 @@ void Timer::_build_prop_tasks_cuda() {
     last = T;
   }
 
+  auto dummy_task3 = _taskflow.emplace([] () {
+      _prof::stop_timer("prop_forward_remaining");
+      _prof::setup_timer("prop_backward");
+    });
+  dummy_task3.succeed(last);
+  last = dummy_task3;
+
   // backward
   for(int i = 0; i < (int)frontiers_ends.size() - 1; ++i) {
     int l = frontiers_ends[i], r = frontiers_ends[i + 1];
@@ -1324,6 +1340,12 @@ void Timer::_build_prop_tasks_cuda() {
     last = T;
   }
   
+  auto dummy_task4 = _taskflow.emplace([] () {
+      _prof::stop_timer("prop_backward");
+    });
+  dummy_task4.succeed(last);
+  last = dummy_task4;
+
   // cleanup
   auto task_cleanup = _taskflow.emplace([this] () {
       //std::vector<int> &frontiers = *_prop_frontiers;
@@ -1349,6 +1371,7 @@ void Timer::_build_prop_tasks_cuda() {
       //  }
       //}
 
+      _prof::setup_timer("cleanup");
       _prop_cuda_cpu.reset();
       //_prop_cuda_gpu->destroy_device();
       _prop_cuda_gpu.reset();
@@ -1362,6 +1385,7 @@ void Timer::_build_prop_tasks_cuda() {
       _prop_pin_loads.reset();
       _prop_pin_slews.reset();
       _prop_pin_ats.reset();
+      _prof::stop_timer("cleanup");
 
     });
   last.precede(task_cleanup);

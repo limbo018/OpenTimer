@@ -46,11 +46,12 @@
     checkCUDA(cudaMemcpy(var, rhs, sizeof(decltype(*rhs))*(size), cudaMemcpyHostToDevice)); \
 }
 
-#define allocateCopyCUDAAsync(var, rhs, size, stream) \
-{\
-    allocateCUDA(var, size, decltype(*rhs)); \
-    checkCUDA(cudaMemcpyAsync(var, rhs, sizeof(decltype(*rhs))*(size), cudaMemcpyHostToDevice, stream)); \
-}
+// #define allocateCopyCUDAAsync(var, rhs, size, stream) \
+// {\
+//     allocateCUDA(var, size, decltype(*rhs)); \
+//     checkCUDA(cudaMemcpyAsync(var, rhs, sizeof(decltype(*rhs))*(size), cudaMemcpyHostToDevice, stream)); \
+// }
+#define allocateCopyCUDAAsync(var, rhs, size, stream) allocateCopyCUDA(var, rhs, size)
 
 #define memcpyDeviceHostCUDA(var, rhs, size) \
   {                                          \
