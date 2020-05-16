@@ -18,6 +18,7 @@
 #include <ot/verilog/verilog.hpp>
 #include <ot/sdc/sdc.hpp>
 #include <ot/tau/tau15.hpp>
+#include <ot/cuda/prop.cuh>
 
 namespace ot {
   
@@ -194,8 +195,15 @@ class Timer {
     std::unordered_map<std::string, Clock> _clocks;
 
     std::optional<FlatRctStorage> _flat_rct_stor;
-    std::optional<std::vector<int>> _prop_frontiers;
-    std::optional<std::vector<int>> _prop_frontiers_ends;
+
+    // forward propagation on GPU
+    std::optional<PropCUDA> _prop_cuda_cpu, _prop_cuda_gpu;
+    std::optional<FlatArcGraph> _prop_fanin_arc_graph;
+    std::optional<std::vector<int>> _prop_frontiers, _prop_frontiers_ends;
+    std::optional<std::vector<int>> _prop_arc2ftid;
+    std::optional<std::vector<ArcInfo>> _prop_net_arc_infos;
+    std::optional<std::vector<float>> _prop_pin_loads;
+    std::optional<std::vector<PinInfoCUDA>> _prop_pin_slews, _prop_pin_ats;
  
     std::list<Test> _tests;
     std::list<Arc> _arcs;

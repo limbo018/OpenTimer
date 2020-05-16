@@ -32,7 +32,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O2")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O2 -g")
 endif()
 
 # Check if static build
@@ -107,7 +107,7 @@ find_package(CUDA REQUIRED)
 # message("-- CMAKE_CUDA_FLAGS: ${CMAKE_CUDA_FLAGS}")
 
 #set(CUDA_NVCC_FLAGS -O2 --default-stream=per-thread)
-set(CUDA_NVCC_FLAGS -O2)
+set(CUDA_NVCC_FLAGS -O2 -g)
 
 # Tclsh module
 include(FindTclsh)
