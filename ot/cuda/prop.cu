@@ -129,9 +129,11 @@ void PropCUDA::copy_arc2ftid(std::vector<int> const& host_arc2ftid) {
     allocateCopyCUDAAsync(arc2ftid, host_arc2ftid.data(), host_arc2ftid.size(), streams[5]);
 }
 
-void PropCUDA::copy_frontiers(std::vector<int> const& host_frontiers) {
-    allocateCopyCUDAAsync(frontiers, host_frontiers.data(), host_frontiers.size(), streams[6]); 
-    num_pins = host_frontiers.size();
+void PropCUDA::alloc_frontiers(int n) {
+  num_pins = n;
+  allocateCUDA(frontiers, n, int);
+  //allocateCopyCUDAAsync(frontiers, host_frontiers.data(), host_frontiers.size(), streams[6]); 
+  //num_pins = host_frontiers.size();
 }
 
 void PropCUDA::copy_frontiers_ends(std::vector<int> const& host_frontiers_ends) {

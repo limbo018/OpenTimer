@@ -70,7 +70,7 @@ struct PropCUDA {
     void copy_fanout_degrees(std::vector<int> const& host_fanout_degrees); 
     void copy_pin_loads(std::vector<float> const& host_pin_loads);
     void copy_arc2ftid(std::vector<int> const& host_arc2ftid);
-    void copy_frontiers(std::vector<int> const& host_frontiers);
+    void alloc_frontiers(int n);
     void copy_frontiers_ends(std::vector<int> const& host_frontiers_ends);
     void copy_pin_slews(std::vector<PinInfoCUDA> const& host_pin_slews); 
     void copy_pin_ats(std::vector<PinInfoCUDA> const& host_pin_ats); 

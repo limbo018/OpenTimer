@@ -998,10 +998,8 @@ void Timer::_build_prop_tasks_cuda() {
   
   int n = _pins.size();
   int num_edges = std::numeric_limits<int>::max();
-  //FlatGraph fanin_graph; 
-  FlatArcGraph fanin_arc_graph; 
-  //FlatArcGraph fanout_arc_graph; 
-  //fanin_graph.set_num_nodes(n); 
+
+  FlatArcGraph &fanin_arc_graph = _prop_fanin_arc_graph.emplace();
   fanin_arc_graph.set_num_nodes(n);
 
   //////////// !!! CAUSION !!!! ///////////
@@ -1014,8 +1012,8 @@ void Timer::_build_prop_tasks_cuda() {
   // This code is rather crappy for now. 
   // In the future, we shoudl have a better way to manage CPU and GPU data copies. 
   /////////////////////////////////////////
-  PropCUDA prop_data_cpu;
-  PropCUDA prop_data_cuda;
+  PropCUDA &prop_data_cpu = _prop_cuda_cpu.emplace();
+  PropCUDA &prop_data_cuda = _prop_cuda_gpu.emplace();
   prop_data_cuda.init_device();
 
   // only used locally through levelization
@@ -1024,8 +1022,12 @@ void Timer::_build_prop_tasks_cuda() {
   std::vector<int> &frontiers = _prop_frontiers.emplace(n, 0);
   std::vector<int> &frontiers_ends = _prop_frontiers_ends.emplace();
 
+  auto dummy_s1 = _tf.emplace([] () {
+      _prof::setup_timer("fanin_count_edges_pair");
+    });
+
   // count number of edges
-  auto fanin_count_edges_pair = _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
+  auto [fanin_count_edges_S, fanin_count_edges_T] = _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
       int& szi = fanin_arc_graph.adjacency_list_start[pin->_idx + 1];
       for(auto arc: pin->_fanin) {
         if(!arc->_has_state(Arc::LOOP_BREAKER)
@@ -1040,14 +1042,18 @@ void Timer::_build_prop_tasks_cuda() {
   
   // sequential partial sum of fanin degree, for in-edge adjacency list
   auto fanin_prefix_sum = _tf.emplace([&](){
+      _prof::stop_timer("fanin_count_edges_pair");
+      _prof::setup_timer("fanin_prefix_sum");
       for(int i = 1; i <= n; ++i) {
         fanin_arc_graph.adjacency_list_start[i] += fanin_arc_graph.adjacency_list_start[i - 1];
       }
       num_edges = fanin_arc_graph.adjacency_list_start[n];
       fanin_arc_graph.adjacency_list.resize(num_edges);
       fanin_arc_graph.num_edges = num_edges; 
+      _prof::stop_timer("fanin_prefix_sum");
+      _prof::setup_timer("fanin_put_edges");
     });
-  fanin_prefix_sum.succeed(fanin_count_edges_pair.second);
+  fanin_prefix_sum.succeed(fanin_count_edges_T);
 
   // put edges into edgelist
   auto [fanin_put_edges_S, fanin_put_edges_T] = _tf.parallel_for(_fprop_cands.begin(), _fprop_cands.end(), [&] (Pin *pin) {
@@ -1063,6 +1069,8 @@ void Timer::_build_prop_tasks_cuda() {
   fanin_put_edges_S.succeed(fanin_prefix_sum); 
 
   auto copy_fanin_graph = _tf.emplace([&](){
+      _prof::stop_timer("fanin_put_edges");
+      _prof::setup_timer("copy_fanin_graph");
       prop_data_cpu.fanin_graph.adjacency_list = fanin_arc_graph.adjacency_list.data();
       prop_data_cpu.fanin_graph.adjacency_list_start = fanin_arc_graph.adjacency_list_start.data();
       prop_data_cpu.fanin_graph.num_nodes = fanin_arc_graph.num_nodes;
@@ -1071,36 +1079,33 @@ void Timer::_build_prop_tasks_cuda() {
 
       prop_data_cpu.fanout_degrees = fanout_degrees.data();
       prop_data_cuda.copy_fanout_degrees(fanout_degrees); 
+      _prof::stop_timer("copy_fanin_graph");
     });
   copy_fanin_graph.succeed(fanin_put_edges_T);
   
-  auto copy_frontiers = _tf.emplace([&](){
+  auto alloc_frontiers = _tf.emplace([&] () {
       prop_data_cpu.frontiers = frontiers.data();
-      prop_data_cuda.copy_frontiers(frontiers);
+      prop_data_cuda.alloc_frontiers(n);
     });
 
   // Step 2: call GPU function
   auto toposort = _tf.emplace([&](){
+      _prof::setup_timer("toposort_compute_cuda");
       toposort_compute_cuda(
         prop_data_cpu, prop_data_cuda, 
         frontiers_ends);
+      _prof::stop_timer("toposort_compute_cuda");
     });
-  toposort.succeed(copy_fanin_graph, copy_frontiers);
+  toposort.succeed(copy_fanin_graph, alloc_frontiers);
 
   auto copy_frontiers_ends = _tf.emplace([&](){
       prop_data_cpu.frontiers_ends = frontiers_ends.data();
       prop_data_cuda.copy_frontiers_ends(frontiers_ends);
     });
-  copy_frontiers_ends.succeed(toposort); 
+  copy_frontiers_ends.succeed(toposort);
 
-  //_prof::setup_timer("entire_toposort");
-  //_ex.run(_tf).wait();
-  //_tf.clear();
-  //_prof::stop_timer("entire_toposort");
+  std::vector<int> &arc2ftid = _prop_arc2ftid.emplace(_arcs.size() * (MAX_SPLIT_TRAN * MAX_TRAN), std::numeric_limits<int>::max());
   
-  OT_LOGI("bptc VI", "  sz ", frontiers_ends.size());
-
-  std::vector<int> arc2ftid (_arcs.size() * (MAX_SPLIT_TRAN * MAX_TRAN), std::numeric_limits<int>::max()); 
   // prepare timing table and arc2ftid for propagation on GPU
   // Timing Graph here is constructed
   auto prepare_timing_table = _tf.emplace([&](){
@@ -1172,10 +1177,10 @@ void Timer::_build_prop_tasks_cuda() {
   copy_arc2ftid.succeed(arc2ftid_T);
 
   // for net arcs only 
-  std::vector<ArcInfo> arc_infos (_arcs.size()); 
-  std::vector<float> pin_loads (_pins.size() * MAX_SPLIT_TRAN, 0);
-  std::vector<PinInfoCUDA> pin_slews (_pins.size() * MAX_SPLIT_TRAN); 
-  std::vector<PinInfoCUDA> pin_ats (_pins.size() * MAX_SPLIT_TRAN); 
+  std::vector<ArcInfo> &arc_infos = _prop_net_arc_infos.emplace(_arcs.size()); 
+  std::vector<float> &pin_loads = _prop_pin_loads.emplace(_pins.size() * MAX_SPLIT_TRAN, 0);
+  std::vector<PinInfoCUDA> &pin_slews = _prop_pin_slews.emplace(_pins.size() * MAX_SPLIT_TRAN); 
+  std::vector<PinInfoCUDA> &pin_ats = _prop_pin_ats.emplace(_pins.size() * MAX_SPLIT_TRAN); 
   
   auto [init_arcs_S, init_arcs_T] = _tf.parallel_for(0, (int)_arcs.size(), 1, [&] (int idx) {
       Arc const& arc = *_idx2arc[idx];
@@ -1238,22 +1243,28 @@ void Timer::_build_prop_tasks_cuda() {
     });
   copy_pin_slews_ats.succeed(init_pin_slews_T);
 
-  // _prof::setup_timer("prop_prepare");
-  // _ex.run(_tf).wait();
-  // _tf.clear();
-  // _prof::stop_timer("prop_prepare");
+  _prof::setup_timer("prop_prepare");
+  _ex.run(_tf).wait();
+  _tf.clear();
+  _prof::stop_timer("prop_prepare");
 
-  auto run_prop = _tf.emplace([&](){
+  auto run_prop = _taskflow.emplace([&](){
       prop_data_cpu.num_levels = frontiers_ends.size() - 1;
       prop_data_cpu.num_pins = _pins.size(); 
       prop_data_cpu.num_arcs = _arcs.size();
 
       prop_cuda(prop_data_cpu, prop_data_cuda);
     });
-  run_prop.succeed(copy_timing_table, copy_arc2ftid, copy_pin_loads_arc_infos, copy_pin_slews_ats, copy_frontiers_ends);
-  // run_prop.succeed(fanout_put_edges_T);
   
-  auto [copy_slew_at_S, copy_slew_at_T]  = _tf.parallel_for(0, (int)_pins.size(), 1, [&](int idx) {
+  // _prof::setup_timer("[TEST]run_prop");
+  // _ex.run(_tf).wait();
+  // _tf.clear();
+  // _prof::stop_timer("[TEST]run_prop");
+
+  // run_prop.succeed(copy_timing_table, copy_arc2ftid, copy_pin_loads_arc_infos, copy_pin_slews_ats, copy_frontiers_ends);
+  // // run_prop.succeed(fanout_put_edges_T);
+  
+  auto [copy_slew_at_S, copy_slew_at_T]  = _taskflow.parallel_for(0, (int)_pins.size(), 1, [&](int idx) {
       Pin *pin = _idx2pin[idx];
       FOR_EACH_EL_RF(el, rf) {
         int offset = pin->idx() * MAX_SPLIT_TRAN + el * MAX_SPLIT + rf;
@@ -1265,7 +1276,7 @@ void Timer::_build_prop_tasks_cuda() {
     }, 32);
   copy_slew_at_S.succeed(run_prop);
 
-  auto [copy_delay_S, copy_delay_T]  = _tf.parallel_for(0, (int)_arcs.size(), 1, [&](int idx) {
+  auto [copy_delay_S, copy_delay_T]  = _taskflow.parallel_for(0, (int)_arcs.size(), 1, [&](int idx) {
       Arc *arc = _idx2arc[idx];
       if (arc->is_cell_arc()) {
         auto& cell_arc = arc_infos[arc->idx()].cell_arc;
@@ -1285,18 +1296,8 @@ void Timer::_build_prop_tasks_cuda() {
     }, 32);
   copy_delay_S.succeed(run_prop);
 
-  _prof::setup_timer("entire_prop");
-  _ex.run(_tf).wait();
-  _tf.clear();
-  _prof::stop_timer("entire_prop");
-
-  // _prof::setup_timer("[TEST]run_prop");
-  // _executor.run(_taskflow).wait();
-  // _taskflow.clear();
-  // _prof::stop_timer("[TEST]run_prop");
-
   // Step 3: build remaining tasks for forward prop, and all tasks for backward prop
-  std::optional<tf::Task> last;
+  tf::Task last = copy_delay_T;
 
   // forward
   for(int i = (int)frontiers_ends.size() - 2; i >= 0; --i) {
@@ -1308,7 +1309,7 @@ void Timer::_build_prop_tasks_cuda() {
         //_fprop_at(*pin);
         _fprop_test(*pin);
       }, 32);
-    if(last) last->precede(S);
+    last.precede(S);
     last = T;
   }
 
@@ -1319,7 +1320,7 @@ void Timer::_build_prop_tasks_cuda() {
         Pin *pin = _idx2pin[idx];
         _bprop_rat(*pin);
       }, 32);
-    if(last) last->precede(S);
+    last.precede(S);
     last = T;
   }
   
@@ -1348,22 +1349,22 @@ void Timer::_build_prop_tasks_cuda() {
       //  }
       //}
 
-      // _prop_cuda_cpu.reset();
-      // //_prop_cuda_gpu->destroy_device();
-      // _prop_cuda_gpu.reset();
-      // _prop_fanin_arc_graph.reset();
+      _prop_cuda_cpu.reset();
+      //_prop_cuda_gpu->destroy_device();
+      _prop_cuda_gpu.reset();
+      _prop_fanin_arc_graph.reset();
       
       _prop_frontiers.reset();
       _prop_frontiers_ends.reset();
 
-      // _prop_arc2ftid.reset();
-      // _prop_net_arc_infos.reset();
-      // _prop_pin_loads.reset();
-      // _prop_pin_slews.reset();
-      // _prop_pin_ats.reset();
+      _prop_arc2ftid.reset();
+      _prop_net_arc_infos.reset();
+      _prop_pin_loads.reset();
+      _prop_pin_slews.reset();
+      _prop_pin_ats.reset();
 
     });
-  if(last) last->precede(task_cleanup);
+  last.precede(task_cleanup);
   
   _prof::stop_timer("_build_prop_tasks_cuda");
 }
