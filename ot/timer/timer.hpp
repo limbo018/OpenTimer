@@ -139,7 +139,7 @@ class Timer {
     void dump_verilog(std::ostream&, const std::string&) const;
     void dump_spef(std::ostream&) const;
     void dump_rctree(std::ostream&) const;
-    void get_sizes(size_t&, size_t&, size_t&) const;
+    void get_sizes(size_t&, size_t&, size_t&, size_t&, size_t&, size_t&, size_t&) const;
 
     inline auto num_primary_inputs() const;
     inline auto num_primary_outputs() const;
