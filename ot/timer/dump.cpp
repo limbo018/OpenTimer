@@ -626,6 +626,18 @@ void Timer::_dump_spef(std::ostream& os) const {
   }
 
 }
+
+// Function: get_sizes
+void Timer::get_sizes(size_t &n_nets, size_t &n_nodes, size_t &n_pins) const {
+  n_nets = _nets.size();
+  n_pins = _pins.size();
+  n_nodes = 0;
+  for(const auto &[name, net]: _nets) {
+    if(net._spef_net) {
+      n_nodes += net._spef_net->ress.size() + 1;
+    }
+  }
+}
     
 };  // end of namespace ot. -----------------------------------------------------------------------
 

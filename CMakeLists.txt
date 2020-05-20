@@ -256,6 +256,11 @@ message(STATUS "OpenTimer shell: ${OT_SHELL}")
 #add_executable(aes_cipher example/aes_cipher/aes_cipher.cpp)
 #target_link_libraries(aes_cipher ${OT_LINK_FLAGS})
 
+# full-profile
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/example/full-profile)
+add_executable(full-profile example/full-profile/fp.cpp)
+target_link_libraries(full-profile ${OT_LINK_FLAGS})
+
 ###########################################################
 # Install
 # cmake .. -DCMAKE_INSTALL_PREFIX=<prefix_path>
