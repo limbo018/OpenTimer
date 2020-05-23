@@ -1012,6 +1012,7 @@ void Timer::_build_prop_tasks_cuda() {
   // This code is rather crappy for now. 
   // In the future, we shoudl have a better way to manage CPU and GPU data copies. 
   /////////////////////////////////////////
+  _prof::setup_timer("bptc_memory_alloc");
   PropCUDA &prop_data_cpu = _prop_cuda_cpu.emplace();
   PropCUDA &prop_data_cuda = _prop_cuda_gpu.emplace();
   prop_data_cuda.init_device();
@@ -1021,6 +1022,17 @@ void Timer::_build_prop_tasks_cuda() {
   
   std::vector<int> &frontiers = _prop_frontiers.emplace(n, 0);
   std::vector<int> &frontiers_ends = _prop_frontiers_ends.emplace();
+
+  std::vector<int> &arc2ftid = _prop_arc2ftid.emplace(_arcs.size() * (MAX_SPLIT_TRAN * MAX_TRAN), std::numeric_limits<int>::max());
+  
+  // for net arcs only 
+  std::vector<ArcInfo> &arc_infos = _prop_net_arc_infos.emplace(_arcs.size()); 
+  std::vector<float> &pin_loads = _prop_pin_loads.emplace(_pins.size() * MAX_SPLIT_TRAN, 0);
+  std::vector<PinInfoCUDA> &pin_slews = _prop_pin_slews.emplace(_pins.size() * MAX_SPLIT_TRAN); 
+  std::vector<PinInfoCUDA> &pin_ats = _prop_pin_ats.emplace(_pins.size() * MAX_SPLIT_TRAN); 
+  
+  _prof::stop_timer("bptc_memory_alloc");
+  _prof::setup_timer("build_tasks_prepare");
 
   auto dummy_task1 = _tf.emplace([] () {
       _prof::setup_timer("fanin_count_edges_pair");
@@ -1105,8 +1117,6 @@ void Timer::_build_prop_tasks_cuda() {
     });
   copy_frontiers_ends.succeed(toposort);
 
-  std::vector<int> &arc2ftid = _prop_arc2ftid.emplace(_arcs.size() * (MAX_SPLIT_TRAN * MAX_TRAN), std::numeric_limits<int>::max());
-  
   // prepare timing table and arc2ftid for propagation on GPU
   // Timing Graph here is constructed
   auto prepare_timing_table = _tf.emplace([&](){
@@ -1177,12 +1187,6 @@ void Timer::_build_prop_tasks_cuda() {
     });
   copy_arc2ftid.succeed(arc2ftid_T);
 
-  // for net arcs only 
-  std::vector<ArcInfo> &arc_infos = _prop_net_arc_infos.emplace(_arcs.size()); 
-  std::vector<float> &pin_loads = _prop_pin_loads.emplace(_pins.size() * MAX_SPLIT_TRAN, 0);
-  std::vector<PinInfoCUDA> &pin_slews = _prop_pin_slews.emplace(_pins.size() * MAX_SPLIT_TRAN); 
-  std::vector<PinInfoCUDA> &pin_ats = _prop_pin_ats.emplace(_pins.size() * MAX_SPLIT_TRAN); 
-  
   auto [init_arcs_S, init_arcs_T] = _tf.parallel_for(0, (int)_arcs.size(), 1, [&] (int idx) {
       Arc const& arc = *_idx2arc[idx];
       std::visit(Functors{
@@ -1243,11 +1247,15 @@ void Timer::_build_prop_tasks_cuda() {
       prop_data_cuda.copy_pin_ats(pin_ats);
     });
   copy_pin_slews_ats.succeed(init_pin_slews_T);
-
+  
+  _prof::stop_timer("build_tasks_prepare");
+  
   _prof::setup_timer("prop_prepare");
   _ex.run(_tf).wait();
   _tf.clear();
   _prof::stop_timer("prop_prepare");
+
+  _prof::setup_timer("build_tasks_exec");
 
   auto run_prop = _taskflow.emplace([&](){
       prop_data_cpu.num_levels = frontiers_ends.size() - 1;
@@ -1390,6 +1398,7 @@ void Timer::_build_prop_tasks_cuda() {
     });
   last.precede(task_cleanup);
   
+  _prof::stop_timer("build_tasks_exec");
   _prof::stop_timer("_build_prop_tasks_cuda");
 }
 
