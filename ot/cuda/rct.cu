@@ -58,6 +58,75 @@ __global__ void compute_net_timing(RctCUDAType rct) {
   }
 }
 
+#ifdef RCT_BASELINE
+
+template <typename RctCUDAType>
+__device__ void dfs_load(RctCUDAType &rct, int st, int u, int k) {
+  rct.load[(st + u) * 4 + k] = rct.cap[(st + u) * 4 + k];
+  for(int i = (u == 0 ? 0 : rct.rct_edgecount[st + u - 1]);
+      i < rct.rct_edgecount[st + u];
+      ++i) {
+    int v = rct.rct_edgeadj[st + i];
+    dfs_load(rct, st, v, k);
+    rct.load[(st + u) * 4 + k] += rct.load[(st + v) * 4 + k];
+  }
+}
+
+template <typename RctCUDAType>
+__device__ void dfs_delay(RctCUDAType &rct, int st, int u, int k) {
+  for(int i = (u == 0 ? 0 : rct.rct_edgecount[st + u - 1]);
+      i < rct.rct_edgecount[st + u];
+      ++i) {
+    int v = rct.rct_edgeadj[st + i];
+    rct.delay[(st + v) * 4 + k] = rct.delay[(st + u) * 4 + k] + rct.pres[st + v] * rct.load[(st + v) * 4 + k];
+    dfs_delay(rct, st, v, k);
+  }
+}
+
+template <typename RctCUDAType>
+__device__ void dfs_ldelay(RctCUDAType &rct, int st, int u, int k) {
+  rct.ldelay[(st + u) * 4 + k] = rct.cap[(st + u) * 4 + k] * rct.delay[(st + u) * 4 + k];
+  for(int i = (u == 0 ? 0 : rct.rct_edgecount[st + u - 1]);
+      i < rct.rct_edgecount[st + u];
+      ++i) {
+    int v = rct.rct_edgeadj[st + i];
+    dfs_ldelay(rct, st, v, k);
+    rct.ldelay[(st + u) * 4 + k] += rct.ldelay[(st + v) * 4 + k];
+  }
+}
+
+template <typename RctCUDAType>
+__device__ void dfs_response(RctCUDAType &rct, int st, int u, int k) {
+  for(int i = (u == 0 ? 0 : rct.rct_edgecount[st + u - 1]);
+      i < rct.rct_edgecount[st + u];
+      ++i) {
+    int v = rct.rct_edgeadj[st + i];
+    rct.impulse[(st + v) * 4 + k] = rct.impulse[(st + u) * 4 + k] + rct.pres[st + v] * rct.ldelay[(st + v) * 4 + k];
+    dfs_response(rct, st, v, k);
+  }
+  // beta -> impulse
+  float t = rct.delay[(st + u) * 4 + k];
+  rct.impulse[(st + u) * 4 + k] = 2 * rct.impulse[(st + u) * 4 + k] - t * t;
+}
+
+template <typename RctCUDAType>
+__global__ void compute_net_timing_dfs(RctCUDAType rct) {
+  unsigned int net_id = blockIdx.x * blockDim.x + threadIdx.x;
+  unsigned int el_rf_offset = threadIdx.y;
+  if(net_id >= rct.num_nets) return;
+  
+  int st = rct.rct_nodes_start[net_id];
+  rct.delay[st * 4 + el_rf_offset] = 0;
+  rct.impulse[st * 4 + el_rf_offset] = 0;
+  
+  dfs_load(rct, st, 0, el_rf_offset);
+  dfs_delay(rct, st, 0, el_rf_offset);
+  dfs_ldelay(rct, st, 0, el_rf_offset);
+  dfs_response(rct, st, 0, el_rf_offset);
+}
+
+#endif
+
 RctCUDA copy_cpu_to_gpu(const RctCUDA& data_cpu) {
   RctCUDA data_gpu;
   data_gpu.num_nets = data_cpu.num_nets;
@@ -260,7 +329,11 @@ RctEdgeArrayCUDA copy_cpu_to_gpu(const RctEdgeArrayCUDA& data_cpu) {
   MALLOC_RESULTS(rct_distances);
   MALLOC_RESULTS(rct_sort_counts); 
   MALLOC_RESULTS(rct_node2bfs_order); 
-  MALLOC_RESULTS(rct_pid); 
+  MALLOC_RESULTS(rct_pid);
+#ifdef RCT_BASELINE
+  MALLOC_RESULTS(rct_edgecount);
+  MALLOC_RESULTS(rct_edgeadj);
+#endif
 #undef MALLOC_RESULTS
 #define MALLOC_RESULTS(arr, sz) allocateCUDA(data_gpu.arr, sz, float)
   MALLOC_RESULTS(pres, data_cpu.total_num_nodes); 
@@ -298,6 +371,10 @@ void free_gpu(RctEdgeArrayCUDA data_gpu) {
   FREEG(rct_node2bfs_order); 
   FREEG(rct_nodes_start);
   FREEG(rct_pid);
+#ifdef RCT_BASELINE
+  FREEG(rct_edgecount);
+  FREEG(rct_edgeadj);
+#endif
   FREEG(rct_edges_res); 
   FREEG(rct_nodes_cap);
   FREEG(pres); 
@@ -358,6 +435,48 @@ __global__ void prepare_res_cap(RctEdgeArrayCUDA data_gpu) {
     }
 }
 
+#ifdef RCT_BASELINE
+/// @brief Simple Adjacency list construction
+__global__ void prepare_adjacency_list(RctEdgeArrayCUDA data_gpu) {
+  unsigned int net_id = blockIdx.x * blockDim.x + threadIdx.x;
+  if(net_id >= data_gpu.num_nets) return;
+
+  int st = data_gpu.rct_nodes_start[net_id], ed = data_gpu.rct_nodes_start[net_id + 1];
+  int ste = st - net_id, ede = ed - net_id - 1;
+  const int *orders = data_gpu.rct_node2bfs_order + st;
+  
+  // init edgecount
+  for(int i = st; i < ed; ++i) {
+    data_gpu.rct_edgecount[i] = 0;
+  }
+  for(int i = ste; i < ede; ++i) {
+    auto const &edge = data_gpu.rct_edges[i];
+    ++data_gpu.rct_edgecount[st + orders[edge.s]];
+  }
+  for(int i = st + 1; i < ed; ++i) {
+    data_gpu.rct_edgecount[i] += data_gpu.rct_edgecount[i - 1];
+  }
+
+  for(int i = ste; i < ede; ++i) {
+    auto const &edge = data_gpu.rct_edges[i];
+    int index = --data_gpu.rct_edgecount[st + orders[edge.s]];
+    data_gpu.rct_edgeadj[index] = orders[edge.t];
+  }
+  
+  // re-init edgecount again
+  for(int i = st; i < ed; ++i) {
+    data_gpu.rct_edgecount[i] = 0;
+  }
+  for(int i = ste; i < ede; ++i) {
+    auto const &edge = data_gpu.rct_edges[i];
+    ++data_gpu.rct_edgecount[st + orders[edge.s]];
+  }
+  for(int i = st + 1; i < ed; ++i) {
+    data_gpu.rct_edgecount[i] += data_gpu.rct_edgecount[i - 1];
+  }
+}
+#endif
+
 void rct_bfs_and_compute_cuda(RctEdgeArrayCUDA data_cpu) {
   // copy data 
   _prof::setup_timer("rct_bfs_and_compute_cuda__copy_c2g");
@@ -381,12 +500,32 @@ void rct_bfs_and_compute_cuda(RctEdgeArrayCUDA data_cpu) {
   checkCUDA(cudaDeviceSynchronize());
   _prof::stop_timer("rct_bfs_and_compute_cuda__res_cap");
 
+#ifdef RCT_BASELINE
+
+  // construct adjacency list
+  _prof::setup_timer("rct_bfs_and_compute_cuda__BASELINE_adjacency_list");
+  prepare_adjacency_list<<<(data_cpu.num_nets + chunk - 1) / chunk, chunk>>>
+    (data_gpu);
+  checkCUDA(cudaDeviceSynchronize());
+  _prof::stop_timer("rct_bfs_and_compute_cuda__BASELINE_adjacency_list");
+
+  // compute RC delay (BASELINE)
+  _prof::setup_timer("rct_bfs_and_compute_cuda__BASELINE_do");
+  compute_net_timing_dfs<<<(data_cpu.num_nets + chunk - 1) / chunk,
+    dim3(chunk, MAX_SPLIT_TRAN)>>>(data_gpu);
+  checkCUDA(cudaDeviceSynchronize());
+  _prof::stop_timer("rct_bfs_and_compute_cuda__BASELINE_do");
+
+#else
+  
   // compute RC delay 
   _prof::setup_timer("rct_bfs_and_compute_cuda__compute");
   compute_net_timing<<<(data_cpu.num_nets + chunk - 1) / chunk,
     dim3(chunk, MAX_SPLIT_TRAN)>>>(data_gpu);
   checkCUDA(cudaDeviceSynchronize());
   _prof::stop_timer("rct_bfs_and_compute_cuda__compute");
+  
+#endif
 
   // copy back 
   _prof::setup_timer("rct_bfs_and_compute_cuda__copy_g2c");
