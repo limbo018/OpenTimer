@@ -35,10 +35,10 @@ struct RctEdgeArrayCUDA {
     int* rct_node2bfs_order = nullptr; ///< output, length of total_num_nodes, given node i, should be at location order[i]; same as bfs_reverse_order_map
     int* rct_pid = nullptr; ///< output, length of total_num_nodes; record how far away its parent locates. 
                             ///< For example, the parent of node i is i - pid[i]; the array itself is in BFS order.
-#ifdef RCT_BASELINE
+// #ifdef RCT_BASELINE // don't use this. otherwise, you must use -DRCT_BASELINE in BOTH libOpenTimer.a AND libOpenTimerCUDA.a, to avoid strange problem caused by data structure mismatch
     int *rct_edgecount = nullptr; ///< rct edge count
     int *rct_edgeadj = nullptr; ///< rct edgelist
-#endif
+// #endif
     float* load = nullptr; ///< output, length of total_num_nodes * MAX_SPLIT_TRAN
     float* delay = nullptr; ///< output, length of total_num_nodes * MAX_SPLIT_TRAN
     float* ldelay = nullptr; ///< output, length of total_num_nodes * MAX_SPLIT_TRAN 

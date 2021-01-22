@@ -20,9 +20,11 @@ __global__ void compute_net_timing(RctCUDAType rct) {
 
   // update load from cap
   // and init array
+  rct.delay[st4] = 0;
+  rct.impulse[st4] = 0;
   for(int i = st4; i < ed4; i += MAX_SPLIT_TRAN) {
     rct.load[i] = rct.cap[i];
-    rct.delay[i] = rct.ldelay[i] = rct.impulse[i] = 0;
+    //rct.delay[i] = rct.ldelay[i] = rct.impulse[i] = 0;
   }
 
   // update load from downstream to upstream
@@ -34,21 +36,22 @@ __global__ void compute_net_timing(RctCUDAType rct) {
   // update delay from upstream to downstream
   for(int i = st4 + MAX_SPLIT_TRAN, j = st + 1; i < ed4; i += MAX_SPLIT_TRAN, ++j) {
     int prev = i - rct.rct_pid[j] * MAX_SPLIT_TRAN;
-    rct.delay[i] += rct.delay[prev] + rct.load[i] * rct.pres[j];
+    rct.delay[i] = rct.delay[prev] + rct.load[i] * rct.pres[j];
+    rct.ldelay[i] = rct.delay[i] * rct.cap[i];
   }
 
   // update cap*delay from downstream to upstream
   for(int i = rst4, j = ed - 1; i > red4; i -= MAX_SPLIT_TRAN, --j) {
     int prev = i - rct.rct_pid[j] * MAX_SPLIT_TRAN;
-    rct.ldelay[i] += rct.cap[i] * rct.delay[i];
+    // rct.ldelay[i] += rct.cap[i] * rct.delay[i];
     rct.ldelay[prev] += rct.ldelay[i];
   }
-  rct.ldelay[st4] += rct.cap[st4] * rct.delay[st4];
+  // rct.ldelay[st4] += rct.cap[st4] * rct.delay[st4];
 
   // update beta from upstream to downstream
   for(int i = st4 + MAX_SPLIT_TRAN, j = st + 1; i < ed4; i += MAX_SPLIT_TRAN, ++j) {
     int prev = i - rct.rct_pid[j] * MAX_SPLIT_TRAN;
-    rct.impulse[i] += rct.impulse[prev] + rct.ldelay[i] * rct.pres[j];
+    rct.impulse[i] = rct.impulse[prev] + rct.ldelay[i] * rct.pres[j];
   }
 
   // beta -> impulse
@@ -123,6 +126,59 @@ __global__ void compute_net_timing_dfs(RctCUDAType rct) {
   dfs_delay(rct, st, 0, el_rf_offset);
   dfs_ldelay(rct, st, 0, el_rf_offset);
   dfs_response(rct, st, 0, el_rf_offset);
+}
+
+template <typename RctCUDAType>
+__global__ void compute_net_timing_adjlist(RctCUDAType rct) {
+  unsigned int net_id = blockIdx.x * blockDim.x + threadIdx.x;
+  unsigned int k = threadIdx.y;
+  if(net_id >= rct.num_nets) return;
+  
+  int st = rct.rct_nodes_start[net_id], ed = rct.rct_nodes_start[net_id + 1];
+  int sz = ed - st;
+  rct.delay[st * 4 + k] = 0;
+  rct.impulse[st * 4 + k] = 0;
+
+  for(int u = sz - 1; u >= 0; --u) {
+    rct.load[(st + u) * 4 + k] = rct.cap[(st + u) * 4 + k];
+    for(int i = (u == 0 ? 0 : rct.rct_edgecount[st + u - 1]);
+        i < rct.rct_edgecount[st + u];
+        ++i) {
+      int v = rct.rct_edgeadj[st + i];
+      rct.load[(st + u) * 4 + k] += rct.load[(st + v) * 4 + k];
+    }
+  }
+
+  for(int u = 0; u < sz; ++u) {
+    for(int i = (u == 0 ? 0 : rct.rct_edgecount[st + u - 1]);
+        i < rct.rct_edgecount[st + u];
+        ++i) {
+      int v = rct.rct_edgeadj[st + i];
+      rct.delay[(st + v) * 4 + k] = rct.delay[(st + u) * 4 + k] + rct.pres[st + v] * rct.load[(st + v) * 4 + k];
+    }
+  }
+  
+  for(int u = sz - 1; u >= 0; --u) {
+    rct.ldelay[(st + u) * 4 + k] = rct.cap[(st + u) * 4 + k] * rct.delay[(st + u) * 4 + k];
+    for(int i = (u == 0 ? 0 : rct.rct_edgecount[st + u - 1]);
+        i < rct.rct_edgecount[st + u];
+        ++i) {
+      int v = rct.rct_edgeadj[st + i];
+      rct.ldelay[(st + u) * 4 + k] += rct.ldelay[(st + v) * 4 + k];
+    }
+  }
+
+  for(int u = 0; u < sz; ++u) {
+    for(int i = (u == 0 ? 0 : rct.rct_edgecount[st + u - 1]);
+        i < rct.rct_edgecount[st + u];
+        ++i) {
+      int v = rct.rct_edgeadj[st + i];
+      rct.impulse[(st + v) * 4 + k] = rct.impulse[(st + u) * 4 + k] + rct.pres[st + v] * rct.ldelay[(st + v) * 4 + k];
+    }
+    // beta -> impulse
+    float t = rct.delay[(st + u) * 4 + k];
+    rct.impulse[(st + u) * 4 + k] = 2 * rct.impulse[(st + u) * 4 + k] - t * t;
+  }
 }
 
 #endif
@@ -318,6 +374,8 @@ RctEdgeArrayCUDA copy_cpu_to_gpu(const RctEdgeArrayCUDA& data_cpu) {
   data_gpu.num_nets = data_cpu.num_nets;
   data_gpu.total_num_nodes = data_cpu.total_num_nodes; 
   data_gpu.total_num_edges = data_cpu.total_num_edges;
+  int size = sizeof(int) * (data_cpu.total_num_edges + data_cpu.num_nets + data_cpu.num_nets + 1 + data_cpu.total_num_edges + data_cpu.total_num_nodes * MAX_SPLIT_TRAN);
+  printf("[[[]]] size = %d\n", size);
 #define COPY_DATA(arr, sz) allocateCopyCUDA(data_gpu.arr, data_cpu.arr, sz)
   COPY_DATA(rct_edges, data_cpu.total_num_edges);
   COPY_DATA(rct_roots, data_cpu.num_nets);
@@ -460,7 +518,7 @@ __global__ void prepare_adjacency_list(RctEdgeArrayCUDA data_gpu) {
   for(int i = ste; i < ede; ++i) {
     auto const &edge = data_gpu.rct_edges[i];
     int index = --data_gpu.rct_edgecount[st + orders[edge.s]];
-    data_gpu.rct_edgeadj[index] = orders[edge.t];
+    data_gpu.rct_edgeadj[st + index] = orders[edge.t];
   }
   
   // re-init edgecount again
@@ -511,7 +569,7 @@ void rct_bfs_and_compute_cuda(RctEdgeArrayCUDA data_cpu) {
 
   // compute RC delay (BASELINE)
   _prof::setup_timer("rct_bfs_and_compute_cuda__BASELINE_do");
-  compute_net_timing_dfs<<<(data_cpu.num_nets + chunk - 1) / chunk,
+  compute_net_timing_adjlist<<<(data_cpu.num_nets + chunk - 1) / chunk,
     dim3(chunk, MAX_SPLIT_TRAN)>>>(data_gpu);
   checkCUDA(cudaDeviceSynchronize());
   _prof::stop_timer("rct_bfs_and_compute_cuda__BASELINE_do");

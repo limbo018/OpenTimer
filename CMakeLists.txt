@@ -107,7 +107,7 @@ find_package(CUDA REQUIRED)
 # message("-- CMAKE_CUDA_FLAGS: ${CMAKE_CUDA_FLAGS}")
 
 #set(CUDA_NVCC_FLAGS -O2 --default-stream=per-thread)
-set(CUDA_NVCC_FLAGS -O0 -g -G -DRCT_BASELINE)
+set(CUDA_NVCC_FLAGS -O2 -DRCT_BASELINE)
 
 # Tclsh module
 include(FindTclsh)
