@@ -67,6 +67,9 @@ class Shell {
     void _cuda                   ();
     void _enable_cuda            ();
     void _disable_cuda           ();
+    void _force_full_update        ();
+    void _enable_force_full_update ();
+    void _disable_force_full_update();
 
     // action
     void _update_timing          ();
@@ -148,6 +151,9 @@ class Shell {
       {"cuda",                    &Shell::_cuda},
       {"enable_cuda",             &Shell::_enable_cuda},
       {"disable_cuda",            &Shell::_disable_cuda},
+      {"force_full_update",         &Shell::_force_full_update},
+      {"enable_force_full_update",  &Shell::_enable_force_full_update},
+      {"disable_force_full_update", &Shell::_disable_force_full_update},
 
       // Action
       {"update_timing",           &Shell::_update_timing},

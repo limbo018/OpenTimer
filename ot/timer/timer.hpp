@@ -97,6 +97,7 @@ class Timer {
     Timer& create_clock(std::string, std::string, float);
     Timer& cppr(bool);
     Timer& cuda(bool);
+    Timer& force_full_update(bool);
     Timer& set_time_unit(second_t);
     Timer& set_capacitance_unit(farad_t);
     Timer& set_resistance_unit(ohm_t);
@@ -300,7 +301,6 @@ class Timer {
     void _set_rat(PrimaryOutput&, Split, Tran, std::optional<float>);
     void _set_load(PrimaryOutput&, Split, Tran, std::optional<float>);
     void _cppr(bool);
-    void _cuda(bool);
     void _topologize(SfxtCache&, size_t) const;
     void _spfa(SfxtCache&) const;
     void _spdp(SfxtCache&) const;

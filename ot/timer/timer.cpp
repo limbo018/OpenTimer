@@ -472,6 +472,19 @@ Timer& Timer::cuda(bool flag) {
   return *this;
 }
 
+Timer& Timer::force_full_update(bool flag) {
+  if(flag) {
+    OT_LOGI("enable forced full update. subsequent call to update_timing will always launch a full update.");
+    _insert_state(FULL_TIMING);
+  }
+  else {
+    OT_LOGI("disable forced full update");
+    _remove_state(FULL_TIMING);
+  }
+
+  return *this;
+}
+
 // Function: cppr
 Timer& Timer::cppr(bool flag) {
   
@@ -1738,6 +1751,7 @@ void Timer::_update_timing() {
 
   // Check if full update is required
   if(_has_state(FULL_TIMING)) {
+    OT_LOGI("full timing");
     _insert_full_timing_frontiers();
   }
 

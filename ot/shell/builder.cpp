@@ -420,6 +420,36 @@ void Shell::_disable_cuda() {
   _timer.cuda(false);
 }
 
+// ------------------------------------------------------------------------------------------------
+// force_full_update control
+// yes, just replace cppr=>force_full_update
+
+// Procedure: force_full_update
+void Shell::_force_full_update() {
+
+  std::string token;
+
+  if(_is >> token; token == "-disable") {
+    _timer.force_full_update(false);
+  }
+  else if(token == "-enable") {
+    _timer.force_full_update(true);
+  }
+  else {
+    _es << "usage: force_full_update -disable|-enable\n";
+  }
+}
+
+// Procedure: _enable_force_full_update
+void Shell::_enable_force_full_update() {
+  _timer.force_full_update(true);
+}
+
+// Procedure: _disable_force_full_update
+void Shell::_disable_force_full_update() {
+  _timer.force_full_update(false);
+}
+
 
 };  // end of namespace ot. -----------------------------------------------------------------------
 
