@@ -311,6 +311,9 @@ void Timer::_connect_pin(Pin& pin, Net& net) {
   }
 
   // TODO(twhuang) Enable the clock tree update?
+
+  // invalidate flat_rct_stor.
+  _flat_rct_stor.reset();
 }
 
 // Procedure: disconnect_pin
@@ -365,6 +368,9 @@ void Timer::_disconnect_pin(Pin& pin) {
   
   // Remove the pin from the net and enable the rc timing update.
   net->_remove_pin(pin);
+  
+  // invalidate flat_rct_stor.
+  _flat_rct_stor.reset();
 }
 
 // Function: insert_net
@@ -386,6 +392,9 @@ Timer& Timer::insert_net(std::string name) {
 
 // Function: _insert_net
 Net& Timer::_insert_net(const std::string& name) {
+  // invalidate flat_rct_stor.
+  _flat_rct_stor.reset();
+  
   return _nets.try_emplace(name, name).first->second;
 }
 
@@ -417,6 +426,9 @@ void Timer::_remove_net(Net& net) {
   }
 
   _nets.erase(net._name);
+  
+  // invalidate flat_rct_stor.
+  _flat_rct_stor.reset();
 }
 
 // Function: _insert_pin
@@ -941,33 +953,36 @@ void Timer::_build_rc_timing_tasks() {
 
   if(_has_state(CUDA_ENABLED)) {
     // Step 1: Allocate the space for FlatRct's
-    auto& stor = _flat_rct_stor.emplace();
+    if(!_flat_rct_stor) {
+      auto& stor = _flat_rct_stor.emplace();
     
-    stor.rct_nodes_start.reserve(_nets.size() + 1);
+      stor.rct_nodes_start.reserve(_nets.size() + 1);
     
-    int total_num_nodes = 0;
-    int total_num_edges = 0; 
-    int net_id = 0; 
-    for(auto &p : _nets) {
-      size_t sz = p.second._init_flat_rct(&stor, total_num_nodes, total_num_edges, net_id);
-      if(!sz) continue;
+      int total_num_nodes = 0;
+      int total_num_edges = 0; 
+      int net_id = 0; 
+      for(auto &p : _nets) {
+        size_t sz = p.second._init_flat_rct(&stor, total_num_nodes, total_num_edges, net_id);
+        if(!sz) continue;
 
+        stor.rct_nodes_start.push_back(total_num_nodes);
+        total_num_nodes += sz;
+        total_num_edges += sz - 1; 
+        net_id += 1; 
+      }
+      
+      assert(total_num_edges + net_id == total_num_nodes);
       stor.rct_nodes_start.push_back(total_num_nodes);
-      total_num_nodes += sz;
-      total_num_edges += sz - 1; 
-      net_id += 1; 
+      stor.total_num_nodes = total_num_nodes;
+      stor.total_num_edges = total_num_edges; 
+      stor.rct_edges.resize(total_num_edges); 
+      stor.rct_edges_res.assign(total_num_edges, 0); 
+      stor.rct_nodes_cap.assign(total_num_nodes*MAX_SPLIT_TRAN, 0); 
+      stor.rct_roots.resize(_nets.size());
+      stor.rct_node2bfs_order.resize(total_num_nodes);
+      stor.rct_pinidx2id.assign(_pins.size(), -1);
+      stor.rct_pid.resize(total_num_nodes);
     }
-    assert(total_num_edges + net_id == total_num_nodes);
-    stor.rct_nodes_start.push_back(total_num_nodes);
-    stor.total_num_nodes = total_num_nodes;
-    stor.total_num_edges = total_num_edges; 
-    stor.rct_edges.resize(total_num_edges); 
-    stor.rct_edges_res.assign(total_num_edges, 0); 
-    stor.rct_nodes_cap.assign(total_num_nodes*MAX_SPLIT_TRAN, 0); 
-    stor.rct_roots.resize(_nets.size());
-    stor.rct_node2bfs_order.resize(total_num_nodes);
-    stor.rct_pinidx2id.assign(_pins.size(), -1);
-    stor.rct_pid.resize(total_num_nodes);
 
     // Step 2: Create task for FlatRct make
     auto pf_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
