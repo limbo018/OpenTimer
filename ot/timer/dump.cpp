@@ -628,14 +628,30 @@ void Timer::_dump_spef(std::ostream& os) const {
 }
 
 // Function: get_sizes
-void Timer::get_sizes(size_t &n_nets, size_t &n_nodes, size_t &n_pins) const {
+void Timer::get_sizes(
+  size_t& n_pis, size_t& n_pos,
+  size_t&n_gates, size_t &n_nets, size_t&n_pins, size_t &n_nodes, size_t &n_edges
+) const {
+  
+  n_pis = _pis.size();
+  n_pos = _pos.size();
+  n_gates = _gates.size();
   n_nets = _nets.size();
   n_pins = _pins.size();
   n_nodes = 0;
+  n_edges = 0;
+
   for(const auto &[name, net]: _nets) {
     if(net._spef_net) {
       n_nodes += net._spef_net->ress.size() + 1;
+      n_edges += net._spef_net->ress.size();
     }
+  }
+
+  n_nodes += n_pins;
+
+  for(const auto& [pname, pin] : _pins) {
+    n_edges += pin._fanin.size();
   }
 }
     

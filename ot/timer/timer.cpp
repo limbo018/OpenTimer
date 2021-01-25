@@ -1014,7 +1014,7 @@ void Timer::_clear_rc_timing_tasks() {
 // Procedure: _build_prop_tasks_cuda
 // do GPU-based levelization, and build level-wise parallel_for tasks
 void Timer::_build_prop_tasks_cuda() {
-  _prof::setup_timer("_build_prop_tasks_cuda");
+  //_prof::setup_timer("_build_prop_tasks_cuda");
 
   // new taskflow instance
   // to avoid the mix of "tasks that build tasks" with "tasks".
@@ -1282,6 +1282,9 @@ void Timer::_build_prop_tasks_cuda() {
   _ex.run(_tf).wait();
   _tf.clear();
   _prof::stop_timer("prop_prepare");
+  
+  // (twhuang) I think the previous step can be overlapped
+  _prof::setup_timer("_build_prop_tasks_cuda");
 
   _prof::setup_timer("build_tasks_exec");
 
