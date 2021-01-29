@@ -4,19 +4,25 @@
 #include <atomic>
 
 namespace _prof {
-  typedef long int intms;
-  extern std::map<std::string, intms> timers;
-  extern std::atomic<intms> t_map, t_bfs, t_cap;
 
-  intms timestamp();
+typedef long int intms;
+extern std::map<std::string, intms> timers;
+extern std::atomic<intms> t_map, t_bfs, t_cap;
 
-  void setup_timer(const std::string &name);
+intms timestamp();
 
-  void stop_timer(const std::string &name);
+void setup_timer(const std::string &name);
 
-  void init_tasktimers();
+void stop_timer(const std::string &name);
 
-  void finalize_tasktimers();
+void init_tasktimers();
+
+void finalize_tasktimers();
+
+intms time_iccad20_cpu();
+
+intms time_iccad20_gpu();
+
 }
 
 

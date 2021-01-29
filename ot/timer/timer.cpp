@@ -1838,9 +1838,19 @@ void Timer::_update_timing() {
   // Clear frontiers
   _clear_frontiers();
 
+  _prof::stop_timer("_update_timing");
+
+  if(_has_state(CUDA_ENABLED)) {
+    OT_LOGI("[ICCAD20 GPUTimer] time_iccad20_gpu = ",
+            _prof::time_iccad20_gpu(), " ms");
+  }
+  else {
+    OT_LOGI("[ICCAD20 GPUTimer] time_iccad20_cpu = ",
+            _prof::time_iccad20_cpu(), " ms");
+  }
+  
   // clear the state
   _remove_state();
-  _prof::stop_timer("_update_timing");
 }
 
 // Procedure: _update_area
