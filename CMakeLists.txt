@@ -6,7 +6,7 @@ MESSAGE(STATUS "CMAKE_ROOT: " ${CMAKE_ROOT})
 project(OpenTimer)
 
 # Turn on the verbose
-set(CMAKE_VERBOSE_MAKEFILE ON)
+set(CMAKE_VERBOSE_MAKEFILE CACHED ON)
 
 # CXX target properties
 ## g++
