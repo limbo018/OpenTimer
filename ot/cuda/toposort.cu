@@ -34,7 +34,7 @@ __global__ void toposort_advance(int *edgelist_start, FlatArc *edgelist,
 const int thread_per_block = 128;
 
 void toposort_compute_cuda(PropCUDA& prop_data_cpu, PropCUDA& prop_data_cuda, 
-  std::vector<int> &frontiers_ends)
+                           std::vector<int, ot_cuda_allocator<int>> &frontiers_ends)
 {
     int n = prop_data_cuda.fanin_graph.num_nodes; 
     int num_edges = prop_data_cuda.fanin_graph.num_edges;

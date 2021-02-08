@@ -7,11 +7,12 @@
 #pragma once 
 
 #include <vector>
+#include "allocator.hpp"
 
 struct FlatGraph {
     /// a flat storage of std::vector<std::vector<int>> adjacency_list;
-    std::vector<int> adjacency_list; ///< elements in the adjacency_list
-    std::vector<int> adjacency_list_start; ///< length of num_nodes + 1, last element is the number of edges 
+    std::vector<int, ot_cuda_allocator<int>> adjacency_list; ///< elements in the adjacency_list
+    std::vector<int, ot_cuda_allocator<int>> adjacency_list_start; ///< length of num_nodes + 1, last element is the number of edges 
     int num_nodes; ///< number of nodes
     int num_edges; ///< number of edges 
 
@@ -29,9 +30,9 @@ struct FlatArc {
 };
 
 struct FlatArcGraph {
-    /// a flat storage of std::vector<std::vector<int>> adjacency_list;
-    std::vector<FlatArc> adjacency_list; ///< elements in the adjacency_list
-    std::vector<int> adjacency_list_start; ///< length of num_nodes + 1, last element is the number of arcs 
+    /// a flat storage of std::vector<std,::vector<int>> adjacency_list;
+    std::vector<FlatArc, ot_cuda_allocator<FlatArc>> adjacency_list; ///< elements in the adjacency_list
+    std::vector<int, ot_cuda_allocator<int>> adjacency_list_start; ///< length of num_nodes + 1, last element is the number of arcs 
     int num_nodes; ///< number of nodes
     int num_edges; ///< number of edges 
 

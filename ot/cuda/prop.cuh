@@ -7,6 +7,7 @@
 #pragma once 
 
 #include <vector>
+#include "ot/cuda/allocator.hpp"
 #include "ot/cuda/graph.cuh"
 #include "ot/cuda/flat_table.cuh"
 
@@ -67,19 +68,19 @@ struct PropCUDA {
     void copy_fanin_graph(FlatArcGraphCUDA const& host_data);
     void copy_slew_ft(FlatTableCUDA const& host_data);
     void copy_delay_ft(FlatTableCUDA const& host_data);
-    void copy_fanout_degrees(std::vector<int> const& host_fanout_degrees); 
-    void copy_pin_loads(std::vector<float> const& host_pin_loads);
-    void copy_arc2ftid(std::vector<int> const& host_arc2ftid);
+    void copy_fanout_degrees(std::vector<int, ot_cuda_allocator<int>> const& host_fanout_degrees); 
+    void copy_pin_loads(std::vector<float, ot_cuda_allocator<float>> const& host_pin_loads);
+    void copy_arc2ftid(std::vector<int, ot_cuda_allocator<int>> const& host_arc2ftid);
     void alloc_frontiers(int n);
-    void copy_frontiers_ends(std::vector<int> const& host_frontiers_ends);
-    void copy_pin_slews(std::vector<PinInfoCUDA> const& host_pin_slews); 
-    void copy_pin_ats(std::vector<PinInfoCUDA> const& host_pin_ats); 
-    void copy_arc_infos(std::vector<ArcInfo> const& host_arc_infos);
+    void copy_frontiers_ends(std::vector<int, ot_cuda_allocator<int>> const& host_frontiers_ends);
+    void copy_pin_slews(std::vector<PinInfoCUDA, ot_cuda_allocator<PinInfoCUDA>> const& host_pin_slews); 
+    void copy_pin_ats(std::vector<PinInfoCUDA, ot_cuda_allocator<PinInfoCUDA>> const& host_pin_ats); 
+    void copy_arc_infos(std::vector<ArcInfo, ot_cuda_allocator<ArcInfo>> const& host_arc_infos);
 };
 
 void prop_cuda(PropCUDA& data_cpu, PropCUDA& data_cuda); 
 
 void toposort_compute_cuda(
         PropCUDA& prop_data_cpu, PropCUDA& prop_data_cuda, 
-        std::vector<int> &frontiers_ends
+        std::vector<int, ot_cuda_allocator<int>> &frontiers_ends
   );

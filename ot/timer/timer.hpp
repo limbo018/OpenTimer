@@ -18,6 +18,7 @@
 #include <ot/verilog/verilog.hpp>
 #include <ot/sdc/sdc.hpp>
 #include <ot/tau/tau15.hpp>
+#include <ot/cuda/allocator.hpp>
 #include <ot/cuda/prop.cuh>
 
 namespace ot {
@@ -27,13 +28,13 @@ struct HierTable {
 
   unsigned id;                        // [0, num_hts)
   
-  std::vector<float> slew_indices1;   // input slew
-  std::vector<float> slew_indices2;   // output load
-  std::vector<float> slew_table;      // slew table
+  std::vector<float, ot_cuda_allocator<float>> slew_indices1;   // input slew
+  std::vector<float, ot_cuda_allocator<float>> slew_indices2;   // output load
+  std::vector<float, ot_cuda_allocator<float>> slew_table;      // slew table
   
-  std::vector<float> delay_indices1;  // input slew
-  std::vector<float> delay_indices2;  // output load
-  std::vector<float> delay_table;     // delay table
+  std::vector<float, ot_cuda_allocator<float>> delay_indices1;  // input slew
+  std::vector<float, ot_cuda_allocator<float>> delay_indices2;  // output load
+  std::vector<float, ot_cuda_allocator<float>> delay_table;     // delay table
    
 };
 
@@ -43,21 +44,21 @@ struct FlatTable {
 
   std::unordered_map<const Timing*, int> t2ftid[MAX_SPLIT][MAX_TRAN][MAX_TRAN];
 
-  std::vector<float> slew_indices1;  
-  std::vector<float> slew_indices2;  
-  std::vector<float> slew_table;           
+  std::vector<float, ot_cuda_allocator<float>> slew_indices1;  
+  std::vector<float, ot_cuda_allocator<float>> slew_indices2;  
+  std::vector<float, ot_cuda_allocator<float>> slew_table;           
   
-  std::vector<float> delay_indices1;  
-  std::vector<float> delay_indices2;  
-  std::vector<float> delay_table;           
+  std::vector<float, ot_cuda_allocator<float>> delay_indices1;  
+  std::vector<float, ot_cuda_allocator<float>> delay_indices2;  
+  std::vector<float, ot_cuda_allocator<float>> delay_table;           
 
-  std::vector<int> slew_indices1_start;
-  std::vector<int> slew_indices2_start;
-  std::vector<int> slew_table_start;
+  std::vector<int, ot_cuda_allocator<int>> slew_indices1_start;
+  std::vector<int, ot_cuda_allocator<int>> slew_indices2_start;
+  std::vector<int, ot_cuda_allocator<int>> slew_table_start;
 
-  std::vector<int> delay_indices1_start;
-  std::vector<int> delay_indices2_start;
-  std::vector<int> delay_table_start;
+  std::vector<int, ot_cuda_allocator<int>> delay_indices1_start;
+  std::vector<int, ot_cuda_allocator<int>> delay_indices2_start;
+  std::vector<int, ot_cuda_allocator<int>> delay_table_start;
 };
 
 // Class: Timer
@@ -200,11 +201,11 @@ class Timer {
     // forward propagation on GPU
     std::optional<PropCUDA> _prop_cuda_cpu, _prop_cuda_gpu;
     std::optional<FlatArcGraph> _prop_fanin_arc_graph;
-    std::optional<std::vector<int>> _prop_frontiers, _prop_frontiers_ends;
-    std::optional<std::vector<int>> _prop_arc2ftid;
-    std::optional<std::vector<ArcInfo>> _prop_net_arc_infos;
-    std::optional<std::vector<float>> _prop_pin_loads;
-    std::optional<std::vector<PinInfoCUDA>> _prop_pin_slews, _prop_pin_ats;
+  std::optional<std::vector<int, ot_cuda_allocator<int>>> _prop_frontiers, _prop_frontiers_ends;
+  std::optional<std::vector<int, ot_cuda_allocator<int>>> _prop_arc2ftid;
+  std::optional<std::vector<ArcInfo, ot_cuda_allocator<ArcInfo>>> _prop_net_arc_infos;
+  std::optional<std::vector<float, ot_cuda_allocator<float>>> _prop_pin_loads;
+  std::optional<std::vector<PinInfoCUDA, ot_cuda_allocator<PinInfoCUDA>>> _prop_pin_slews, _prop_pin_ats;
  
     std::list<Test> _tests;
     std::list<Arc> _arcs;

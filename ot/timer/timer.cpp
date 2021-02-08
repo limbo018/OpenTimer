@@ -1046,18 +1046,18 @@ void Timer::_build_prop_tasks_cuda() {
   prop_data_cuda.init_device();
 
   // only used locally through levelization
-  std::vector<int> fanout_degrees(n, 0);
+  std::vector<int, ot_cuda_allocator<int>> fanout_degrees(n, 0);
   
-  std::vector<int> &frontiers = _prop_frontiers.emplace(n, 0);
-  std::vector<int> &frontiers_ends = _prop_frontiers_ends.emplace();
+  std::vector<int, ot_cuda_allocator<int>> &frontiers = _prop_frontiers.emplace(n, 0);
+  std::vector<int, ot_cuda_allocator<int>> &frontiers_ends = _prop_frontiers_ends.emplace();
 
-  std::vector<int> &arc2ftid = _prop_arc2ftid.emplace(_arcs.size() * (MAX_SPLIT_TRAN * MAX_TRAN), std::numeric_limits<int>::max());
+  std::vector<int, ot_cuda_allocator<int>> &arc2ftid = _prop_arc2ftid.emplace(_arcs.size() * (MAX_SPLIT_TRAN * MAX_TRAN), std::numeric_limits<int>::max());
   
   // for net arcs only 
-  std::vector<ArcInfo> &arc_infos = _prop_net_arc_infos.emplace(_arcs.size()); 
-  std::vector<float> &pin_loads = _prop_pin_loads.emplace(_pins.size() * MAX_SPLIT_TRAN, 0);
-  std::vector<PinInfoCUDA> &pin_slews = _prop_pin_slews.emplace(_pins.size() * MAX_SPLIT_TRAN); 
-  std::vector<PinInfoCUDA> &pin_ats = _prop_pin_ats.emplace(_pins.size() * MAX_SPLIT_TRAN); 
+  std::vector<ArcInfo, ot_cuda_allocator<ArcInfo>> &arc_infos = _prop_net_arc_infos.emplace(_arcs.size()); 
+  std::vector<float, ot_cuda_allocator<float>> &pin_loads = _prop_pin_loads.emplace(_pins.size() * MAX_SPLIT_TRAN, 0);
+  std::vector<PinInfoCUDA, ot_cuda_allocator<PinInfoCUDA>> &pin_slews = _prop_pin_slews.emplace(_pins.size() * MAX_SPLIT_TRAN); 
+  std::vector<PinInfoCUDA, ot_cuda_allocator<PinInfoCUDA>> &pin_ats = _prop_pin_ats.emplace(_pins.size() * MAX_SPLIT_TRAN); 
   
   _prof::stop_timer("bptc_memory_alloc");
   _prof::setup_timer("build_tasks_prepare");

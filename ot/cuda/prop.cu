@@ -117,15 +117,15 @@ void PropCUDA::copy_delay_ft(FlatTableCUDA const& host_data) {
     host_data.copy2device(this->delay_ft, 2);
 }
 
-void PropCUDA::copy_fanout_degrees(std::vector<int> const& host_fanout_degrees) {
+void PropCUDA::copy_fanout_degrees(std::vector<int, ot_cuda_allocator<int>> const& host_fanout_degrees) {
     allocateCopyCUDAAsync(fanout_degrees, host_fanout_degrees.data(), host_fanout_degrees.size(), streams[3]);
 }
 
-void PropCUDA::copy_pin_loads(std::vector<float> const& host_pin_loads) {
+void PropCUDA::copy_pin_loads(std::vector<float, ot_cuda_allocator<float>> const& host_pin_loads) {
     allocateCopyCUDAAsync(pin_loads, host_pin_loads.data(), host_pin_loads.size(), streams[4]);
 }
 
-void PropCUDA::copy_arc2ftid(std::vector<int> const& host_arc2ftid) {
+void PropCUDA::copy_arc2ftid(std::vector<int, ot_cuda_allocator<int>> const& host_arc2ftid) {
     allocateCopyCUDAAsync(arc2ftid, host_arc2ftid.data(), host_arc2ftid.size(), streams[5]);
 }
 
@@ -136,20 +136,20 @@ void PropCUDA::alloc_frontiers(int n) {
   //num_pins = host_frontiers.size();
 }
 
-void PropCUDA::copy_frontiers_ends(std::vector<int> const& host_frontiers_ends) {
+void PropCUDA::copy_frontiers_ends(std::vector<int, ot_cuda_allocator<int>> const& host_frontiers_ends) {
     allocateCopyCUDAAsync(frontiers_ends, host_frontiers_ends.data(), host_frontiers_ends.size(), streams[7]); 
     num_levels = host_frontiers_ends.size() - 1;
 }
 
-void PropCUDA::copy_pin_slews(std::vector<PinInfoCUDA> const& host_pin_slews) {
+void PropCUDA::copy_pin_slews(std::vector<PinInfoCUDA, ot_cuda_allocator<PinInfoCUDA>> const& host_pin_slews) {
     allocateCopyCUDAAsync(pin_slews, host_pin_slews.data(), host_pin_slews.size(), streams[8]);
 }
 
-void PropCUDA::copy_pin_ats(std::vector<PinInfoCUDA> const& host_pin_ats) {
+void PropCUDA::copy_pin_ats(std::vector<PinInfoCUDA, ot_cuda_allocator<PinInfoCUDA>> const& host_pin_ats) {
     allocateCopyCUDAAsync(pin_ats, host_pin_ats.data(), host_pin_ats.size(), streams[9]);
 }
 
-void PropCUDA::copy_arc_infos(std::vector<ArcInfo> const& host_arc_infos) {
+void PropCUDA::copy_arc_infos(std::vector<ArcInfo, ot_cuda_allocator<ArcInfo>> const& host_arc_infos) {
     allocateCopyCUDAAsync(arc_infos, host_arc_infos.data(), host_arc_infos.size(), streams[10]);
     num_arcs = host_arc_infos.size();
 }
