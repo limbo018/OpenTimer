@@ -984,13 +984,19 @@ void Timer::_build_rc_timing_tasks() {
       stor.rct_pid.resize(total_num_nodes);
     }
 
+    auto dummy_start = _taskflow.emplace([this] () {
+        _prof::setup_timer("update_rc_timing_flat");
+      });
+
     // Step 2: Create task for FlatRct make
     auto pf_pair = _taskflow.parallel_for(_nets.begin(), _nets.end(), [] (auto &p) {
         p.second._update_rc_timing_flat();
       }, 32);
+    dummy_start.precede(pf_pair.first);
 
     // Step 3: Create task for computing FlatRctStorage
     auto task_compute = _taskflow.emplace([this] () {
+        _prof::stop_timer("update_rc_timing_flat");
         _flat_rct_stor->_update_timing_cuda();
       });
 
